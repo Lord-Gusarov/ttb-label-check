@@ -4,6 +4,7 @@ from __future__ import annotations
 import cv2
 import numpy as np
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi.responses import Response
 from pydantic import BaseModel
 
 from app.pipeline import verify_label
@@ -67,6 +68,14 @@ def get_application(app_id: str) -> dict:
         a.verification = serialize_verification(
             verify_label(img, a.commodity_type, application))
     return _detail(a)
+
+
+@router.get("/{app_id}/image")
+def get_image(app_id: str) -> Response:
+    a = store.get(app_id)
+    if a is None or not a.image:
+        raise HTTPException(404, "image not found")
+    return Response(content=a.image, media_type="image/*")
 
 
 @router.post("/{app_id}/decision")
