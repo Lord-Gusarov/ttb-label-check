@@ -76,3 +76,19 @@ def test_bad_decision_rejected():
     store.add(a)
     assert client.post(f"/api/applications/{a.id}/decision",
                        json={"decision": "banana"}).status_code == 422
+
+
+def test_unsupported_commodity_rejected():
+    from app.store import store as _s
+    _s._items.clear()
+    from pathlib import Path
+    clean = Path(__file__).resolve().parents[1] / "corpus" / "images" / "old_tom_clean.png"
+    if not clean.exists():
+        import pytest
+        pytest.skip("seed corpus not generated")
+    with open(clean, "rb") as fh:
+        r = client.post("/api/applications",
+                        data=dict(commodity_type="wine", brand_name="X", class_type="Y",
+                                  alcohol_content="13%", net_contents="750 mL"),
+                        files={"image": ("l.png", fh, "image/png")})
+    assert r.status_code == 400

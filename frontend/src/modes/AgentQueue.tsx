@@ -28,7 +28,7 @@ export function AgentQueue() {
               className="flex w-full items-center justify-between px-5 py-4 text-left hover:bg-slate-50">
               <span className="font-medium text-slate-800">{a.brand_name}</span>
               <span className={`rounded-full px-3 py-1 text-sm font-medium ${STATUS_COLOR[a.status] ?? ""}`}>
-                {a.status.replace("_", " ")}
+                {a.status.replaceAll("_", " ")}
               </span>
             </button>
           </li>

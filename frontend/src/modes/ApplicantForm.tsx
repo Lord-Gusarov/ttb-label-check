@@ -30,8 +30,6 @@ export function ApplicantForm() {
         <select name="commodity_type" defaultValue="distilled_spirits"
           className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-lg">
           <option value="distilled_spirits">Distilled spirits</option>
-          <option value="wine">Wine</option>
-          <option value="malt_beverage">Malt beverage</option>
         </select>
       </label>
       {FIELDS.map((f) => (

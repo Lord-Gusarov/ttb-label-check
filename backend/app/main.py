@@ -67,5 +67,8 @@ if _STATIC_DIR.is_dir():
     @app.get("/{full_path:path}")
     def spa_fallback(full_path: str) -> FileResponse:
         """Serve the SPA index for any non-API route (client-side routing)."""
+        if full_path.startswith("api/"):
+            from fastapi import HTTPException
+            raise HTTPException(status_code=404, detail="not found")
         index = _STATIC_DIR / "index.html"
         return FileResponse(index)

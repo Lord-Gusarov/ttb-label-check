@@ -8,6 +8,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel
 
 from app.pipeline import verify_label
+from app.rules import RULESETS
 from app.serialize import serialize_verification
 from app.store import Application, store
 
@@ -41,6 +42,8 @@ async def create(
     net_contents: str = Form(...),
     image: UploadFile = File(...),
 ) -> dict:
+    if commodity_type not in RULESETS:
+        raise HTTPException(400, f"unsupported commodity '{commodity_type}'")
     raw = await image.read()
     if cv2.imdecode(np.frombuffer(raw, np.uint8), cv2.IMREAD_COLOR) is None:
         raise HTTPException(400, "image is not a readable JPEG/PNG")
@@ -63,6 +66,8 @@ def get_application(app_id: str) -> dict:
         raise HTTPException(404, "application not found")
     if a.verification is None and a.image:
         img = cv2.imdecode(np.frombuffer(a.image, np.uint8), cv2.IMREAD_COLOR)
+        if img is None:
+            raise HTTPException(400, "stored image could not be decoded")
         application = {"brand_name": a.brand_name, "class_type": a.class_type,
                        "alcohol_content": a.alcohol_content, "net_contents": a.net_contents}
         a.verification = serialize_verification(
@@ -75,7 +80,9 @@ def get_image(app_id: str) -> Response:
     a = store.get(app_id)
     if a is None or not a.image:
         raise HTTPException(404, "image not found")
-    return Response(content=a.image, media_type="image/*")
+    media = "image/png" if a.image[:8].startswith(b"\x89PNG") else \
+        "image/jpeg" if a.image[:2] == b"\xff\xd8" else "application/octet-stream"
+    return Response(content=a.image, media_type=media)
 
 
 @router.post("/{app_id}/decision")

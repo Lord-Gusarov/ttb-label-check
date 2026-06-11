@@ -8,9 +8,19 @@ const V_COLOR: Record<Verdict, string> = {
 
 export function ReviewView({ id, onBack }: { id: string; onBack: () => void }) {
   const [app, setApp] = useState<AppDetail | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [hover, setHover] = useState<string | null>(null);
 
-  useEffect(() => { getApplication(id).then(setApp).catch(() => setApp(null)); }, [id]);
+  useEffect(() => {
+    getApplication(id).then(setApp).catch((e) => setError(String(e)));
+  }, [id]);
+  if (error)
+    return (
+      <div className="space-y-3">
+        <button onClick={onBack} className="text-blue-600">← Back to queue</button>
+        <p className="text-red-700">Could not load this application: {error}</p>
+      </div>
+    );
   if (!app) return <p className="text-slate-500">Loading…</p>;
   const v = app.verification;
 
@@ -32,7 +42,7 @@ export function ReviewView({ id, onBack }: { id: string; onBack: () => void }) {
               <div className="flex items-center justify-between">
                 <span className="font-medium text-slate-800">{f.label}</span>
                 <span className="text-sm font-semibold uppercase" style={{ color: V_COLOR[f.verdict] }}>
-                  {f.verdict.replace("_", " ")}
+                  {f.verdict.replaceAll("_", " ")}
                 </span>
               </div>
               <p className="text-sm text-slate-600">
@@ -45,7 +55,7 @@ export function ReviewView({ id, onBack }: { id: string; onBack: () => void }) {
             <button onClick={() => act("needs_correction")} className="rounded-md bg-amber-600 px-4 py-2 text-white">Needs correction</button>
             <button onClick={() => act("rejected")} className="rounded-md bg-red-600 px-4 py-2 text-white">Reject</button>
           </div>
-          <p className="text-sm text-slate-500">Status: <b>{app.status.replace("_", " ")}</b></p>
+          <p className="text-sm text-slate-500">Status: <b>{app.status.replaceAll("_", " ")}</b></p>
         </div>
       </div>
     </div>
