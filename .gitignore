@@ -31,3 +31,8 @@ models/
 *.onnx
 *.pt
 *.pdparams
+
+# Test artifacts
+artifacts/
+frontend/test-results/
+frontend/playwright-report/

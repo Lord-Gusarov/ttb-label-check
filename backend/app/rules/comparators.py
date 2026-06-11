@@ -26,7 +26,7 @@ def _best_fuzzy(exp: str, label_folded: str) -> tuple[float, str | None]:
     if not exp_tokens or not lab_tokens:
         return 0.0, None
     n = len(exp_tokens)
-    best = (0.0, None)
+    best: tuple[float, str | None] = (0.0, None)
     for i in range(0, max(1, len(lab_tokens) - n + 1)):
         window = " ".join(lab_tokens[i : i + n])
         ratio = SequenceMatcher(None, exp, window).ratio()

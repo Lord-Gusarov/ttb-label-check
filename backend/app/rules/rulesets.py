@@ -9,14 +9,16 @@ malt are wired structurally in step 7.
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from dataclasses import field as dc_field
+from typing import Optional
 
 from app.rules.comparators import match_abv, match_net_contents, match_text
 from app.rules.result import Verdict
 from app.rules.spec.tolerances import ABV_TOLERANCE_PCT
 
 # A comparator: (expected, label_text, **params) -> (verdict, found, detail)
-Comparator = Callable[..., tuple[Verdict, str | None, str]]
+Comparator = Callable[..., tuple[Verdict, Optional[str], str]]
 
 
 @dataclass(frozen=True)
@@ -24,7 +26,7 @@ class FieldPolicy:
     field: str  # key in the application dict
     label: str  # human-facing label
     comparator: Comparator
-    params: dict = field(default_factory=dict)
+    params: dict = dc_field(default_factory=dict)
 
 
 DISTILLED_SPIRITS: list[FieldPolicy] = [
