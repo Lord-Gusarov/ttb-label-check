@@ -37,6 +37,11 @@ def health() -> dict[str, str]:
     return {"status": "ok", "version": __version__}
 
 
+from app.api.applications import router as applications_router  # noqa: E402
+
+app.include_router(applications_router)
+
+
 # --- Static frontend (only present after the Vite build is copied in) ----------
 # Build step 1 wires the plumbing; the directory is populated by the Docker build.
 _STATIC_DIR = Path(__file__).parent / "static"
