@@ -17,30 +17,30 @@ test("submit → review → approve, with zero console errors", async ({ page })
   page.on("requestfailed", (r) =>
     errors.push(`requestfailed: ${r.url()} ${r.failure()?.errorText}`));
 
-  await page.goto("/");
-
-  await page.getByRole("tab", { name: "Submit application" }).click();
+  // Submit page (routed)
+  await page.goto("/submit");
   await page.getByPlaceholder("OLD TOM DISTILLERY").fill("OLD TOM DISTILLERY");
   await page.getByPlaceholder("Kentucky Straight Bourbon Whiskey").fill("Kentucky Straight Bourbon Whiskey");
   await page.getByPlaceholder("45% Alc./Vol. (90 Proof)").fill("45% Alc./Vol. (90 Proof)");
   await page.getByPlaceholder("750 mL").fill("750 mL");
   await page.locator('input[type="file"]').setInputFiles(LABEL);
-  await page.getByRole("button", { name: "Submit application" }).click();
-  await expect(page.getByText(/Submitted/)).toBeVisible();
-  // A caught error (e.g. the form-reset bug) surfaces as this banner, not a console error —
-  // assert it explicitly, otherwise a "successful" submit can still be silently broken.
-  await expect(page.getByText(/Could not submit/)).toHaveCount(0);
-  await page.screenshot({ path: path.join(ART, "01-submitted.png"), fullPage: true });
+  await page.getByRole("button", { name: "Submit for review" }).click();
 
-  await page.getByRole("tab", { name: "Agent review" }).click();
-  // Target the app we just submitted (newest is last) — the in-memory queue may already
-  // hold other entries from prior submissions.
-  await page.getByRole("button", { name: /OLD TOM DISTILLERY/ }).last().click();
+  // A successful submit routes straight to the review of that application.
+  await expect(page).toHaveURL(/\/queue\/[a-f0-9]+/, { timeout: 45_000 });
+  // First verification runs here (OCR model load) — allow time.
   await expect(page.getByText("Brand name")).toBeVisible({ timeout: 45_000 });
-  await page.screenshot({ path: path.join(ART, "02-review.png"), fullPage: true });
+  // A caught submit error would have surfaced as this banner (and kept us on /submit).
+  await expect(page.getByText(/Could not submit/)).toHaveCount(0);
+  await page.screenshot({ path: path.join(ART, "01-review.png"), fullPage: true });
+
   await page.getByRole("button", { name: "Approve" }).click();
-  await expect(page.getByText(/Status:\s*approved/i)).toBeVisible();
-  await page.screenshot({ path: path.join(ART, "03-approved.png"), fullPage: true });
+  await expect(page.getByText("Approved")).toBeVisible();
+  await page.screenshot({ path: path.join(ART, "02-approved.png"), fullPage: true });
+
+  // Browser back/forward navigation works (router).
+  await page.goBack();
+  await expect(page).toHaveURL(/\/submit$/);
 
   fs.writeFileSync(path.join(ART, "console.log"), logs.join("\n"));
   expect(errors, `console/page errors:\n${errors.join("\n")}`).toHaveLength(0);
