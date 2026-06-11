@@ -15,6 +15,7 @@ export interface Verification {
   overall: Verdict;
   engine: string;
   elapsed_ms: number;
+  text: string;
   fields: FieldResult[];
   words: { text: string; bbox: Box }[];
 }

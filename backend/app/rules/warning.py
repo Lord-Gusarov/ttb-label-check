@@ -54,15 +54,14 @@ def check_warning_text(label_text: str) -> FieldResult:
     )
     if ratio >= 0.95:
         verdict, detail = Verdict.PASS, f"matches required wording (similarity {ratio:.2f})"
-    elif ratio >= 0.80:
+    else:
+        # The prefix WAS found, so the warning is present on the label. A low full-text
+        # similarity most likely means OCR couldn't read the (small/curved/back-panel)
+        # body — not a genuine rewording. Flag for a human read rather than a false FAIL;
+        # the agent reads the actual text and rejects if it's truly non-compliant.
         verdict, detail = (
             Verdict.NEEDS_REVIEW,
-            f"close to required wording (similarity {ratio:.2f}) — verify exact text / OCR",
-        )
-    else:
-        verdict, detail = (
-            Verdict.FAIL,
-            f"wording differs from required statement (similarity {ratio:.2f})",
+            f"warning present but wording not fully verified (OCR similarity {ratio:.2f}) — read it",
         )
     return FieldResult(
         "warning_text", "Government warning text", verdict,

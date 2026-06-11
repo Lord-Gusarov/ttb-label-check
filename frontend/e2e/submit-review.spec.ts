@@ -33,7 +33,9 @@ test("submit → review → approve, with zero console errors", async ({ page })
   await page.screenshot({ path: path.join(ART, "01-submitted.png"), fullPage: true });
 
   await page.getByRole("tab", { name: "Agent review" }).click();
-  await page.getByRole("button", { name: /OLD TOM DISTILLERY/ }).click();
+  // Target the app we just submitted (newest is last) — the in-memory queue may already
+  // hold other entries from prior submissions.
+  await page.getByRole("button", { name: /OLD TOM DISTILLERY/ }).last().click();
   await expect(page.getByText("Brand name")).toBeVisible({ timeout: 45_000 });
   await page.screenshot({ path: path.join(ART, "02-review.png"), fullPage: true });
   await page.getByRole("button", { name: "Approve" }).click();

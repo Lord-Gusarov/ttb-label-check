@@ -59,6 +59,7 @@ def serialize_verification(vr: VerificationResult) -> dict:
         "overall": vr.result.overall.value,
         "engine": read.engine,
         "elapsed_ms": round(read.elapsed_ms, 1),
+        "text": read.text,  # full text the reader extracted, for the agent to eyeball
         "fields": [serialize_field(f, read) for f in vr.result.fields],
         "words": [{"text": w.text, "bbox": [int(c) for c in w.bbox]} for w in read.words],
     }

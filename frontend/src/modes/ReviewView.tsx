@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { decide, getApplication } from "../api";
-import type { AppDetail, Verdict } from "../types";
+import type { AppDetail, Box, Verdict } from "../types";
 
 const V_COLOR: Record<Verdict, string> = {
   pass: "#16a34a", warn: "#d97706", needs_review: "#d97706", fail: "#dc2626",
@@ -23,6 +23,7 @@ export function ReviewView({ id, onBack }: { id: string; onBack: () => void }) {
     );
   if (!app) return <p className="text-slate-500">Loading…</p>;
   const v = app.verification;
+  const active = v?.fields.find((f) => f.field === hover);
 
   async function act(decision: string) {
     setApp(await decide(id, decision, ""));
@@ -33,12 +34,15 @@ export function ReviewView({ id, onBack }: { id: string; onBack: () => void }) {
       <button onClick={onBack} className="text-blue-600">← Back to queue</button>
       <h2 className="text-xl font-medium text-slate-800">{app.brand_name}</h2>
       <div className="grid gap-6 lg:grid-cols-2">
-        <LabelImage id={id} words={v?.words ?? []}
-          highlight={v?.fields.find((f) => f.field === hover)} />
+        <div className="space-y-2">
+          <LabelImage id={id} highlight={active ? { boxes: active.boxes, verdict: active.verdict } : undefined} />
+          <p className="text-xs text-slate-500">Hover a check on the right to highlight it on the label.</p>
+        </div>
+
         <div className="space-y-3">
           {v?.fields.map((f) => (
             <div key={f.field} onMouseEnter={() => setHover(f.field)} onMouseLeave={() => setHover(null)}
-              className="rounded-lg border border-slate-200 bg-white p-3">
+              className="cursor-pointer rounded-lg border border-slate-200 bg-white p-3 hover:border-slate-400">
               <div className="flex items-center justify-between">
                 <span className="font-medium text-slate-800">{f.label}</span>
                 <span className="text-sm font-semibold uppercase" style={{ color: V_COLOR[f.verdict] }}>
@@ -50,6 +54,16 @@ export function ReviewView({ id, onBack }: { id: string; onBack: () => void }) {
               </p>
             </div>
           ))}
+
+          <details className="rounded-lg border border-slate-200 bg-white p-3">
+            <summary className="cursor-pointer text-sm font-medium text-slate-700">
+              What the reader extracted (OCR) — compare against the label
+            </summary>
+            <p className="mt-2 whitespace-pre-wrap break-words text-sm text-slate-600">
+              {v?.text || "—"}
+            </p>
+          </details>
+
           <div className="flex gap-2 pt-2">
             <button onClick={() => act("approved")} className="rounded-md bg-green-600 px-4 py-2 text-white">Approve</button>
             <button onClick={() => act("needs_correction")} className="rounded-md bg-amber-600 px-4 py-2 text-white">Needs correction</button>
@@ -62,27 +76,26 @@ export function ReviewView({ id, onBack }: { id: string; onBack: () => void }) {
   );
 }
 
-function LabelImage({ id, words, highlight }:
-  { id: string; words: { bbox: [number, number, number, number] }[];
-    highlight?: { boxes: [number, number, number, number][]; verdict: Verdict } }) {
+function LabelImage({ id, highlight }: { id: string; highlight?: { boxes: Box[]; verdict: Verdict } }) {
   const [dim, setDim] = useState<{ w: number; h: number } | null>(null);
-  const src = `/api/applications/${id}/image`;
   return (
-    <div className="relative inline-block border border-slate-200 bg-white">
-      <img src={src} alt="submitted label" className="block max-w-full"
-        onLoad={(e) => setDim({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })} />
-      {dim && (
-        <svg viewBox={`0 0 ${dim.w} ${dim.h}`} className="absolute inset-0 h-full w-full">
-          {words.map((w, i) => (
-            <rect key={i} x={w.bbox[0]} y={w.bbox[1]} width={w.bbox[2] - w.bbox[0]}
-              height={w.bbox[3] - w.bbox[1]} fill="none" stroke="#94a3b8" strokeWidth={1} opacity={0.4} />
-          ))}
-          {highlight?.boxes.map((b, i) => (
-            <rect key={`h${i}`} x={b[0]} y={b[1]} width={b[2] - b[0]} height={b[3] - b[1]}
-              fill="none" stroke={V_COLOR[highlight.verdict]} strokeWidth={3} />
-          ))}
-        </svg>
-      )}
+    <div className="border border-slate-200 bg-white">
+      <div className="relative">
+        <img src={`/api/applications/${id}/image`} alt="submitted label" className="block w-full"
+          onLoad={(e) => setDim({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })} />
+        {dim && highlight && highlight.boxes.length > 0 && (
+          // viewBox = natural pixels, preserveAspectRatio=none stretches it to exactly cover the
+          // displayed <img>, so boxes stay aligned at any size; non-scaling-stroke keeps lines crisp.
+          <svg viewBox={`0 0 ${dim.w} ${dim.h}`} preserveAspectRatio="none"
+            className="pointer-events-none absolute inset-0 h-full w-full">
+            {highlight.boxes.map((b, i) => (
+              <rect key={i} x={b[0]} y={b[1]} width={b[2] - b[0]} height={b[3] - b[1]}
+                fill={V_COLOR[highlight.verdict]} fillOpacity={0.15}
+                stroke={V_COLOR[highlight.verdict]} strokeWidth={2} vectorEffect="non-scaling-stroke" />
+            ))}
+          </svg>
+        )}
+      </div>
     </div>
   );
 }
