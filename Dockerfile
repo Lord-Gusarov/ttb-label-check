@@ -23,7 +23,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Install Python dependencies first (cached layer independent of app code).
 COPY backend/pyproject.toml ./
-RUN uv sync --no-dev --no-install-project
+RUN uv sync --no-dev --extra readers --no-install-project
 
 # App code + built frontend.
 COPY backend/app ./app
