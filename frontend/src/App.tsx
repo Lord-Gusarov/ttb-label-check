@@ -1,62 +1,34 @@
-import { useEffect, useState } from 'react'
+import { useState } from "react";
+import { ApplicantForm } from "./modes/ApplicantForm";
+import { AgentQueue } from "./modes/AgentQueue";
+import { ErrorBoundary } from "./ErrorBoundary";
 
-type Health = { status: string; version: string }
+type Mode = "applicant" | "agent";
 
-function App() {
-  const [health, setHealth] = useState<Health | null>(null)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    fetch('/api/health')
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
-      .then(setHealth)
-      .catch((e) => setError(String(e)))
-  }, [])
-
+export default function App() {
+  const [mode, setMode] = useState<Mode>("agent");
   return (
     <div className="min-h-full flex flex-col">
       <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto max-w-5xl px-6 py-5 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold text-slate-900">Label Check</h1>
-            <p className="text-slate-500">TTB alcohol label verification</p>
-          </div>
-          <ApiBadge health={health} error={error} />
+        <div className="mx-auto max-w-6xl px-6 py-4 flex items-center justify-between">
+          <h1 className="text-2xl font-semibold text-slate-900">Label Check</h1>
+          <nav className="flex gap-1 rounded-lg bg-slate-100 p-1" role="tablist">
+            {(["applicant", "agent"] as Mode[]).map((m) => (
+              <button key={m} role="tab" aria-selected={mode === m}
+                onClick={() => setMode(m)}
+                className={`px-4 py-2 rounded-md text-sm font-medium ${
+                  mode === m ? "bg-white text-slate-900 shadow" : "text-slate-600"}`}>
+                {m === "applicant" ? "Submit application" : "Agent review"}
+              </button>
+            ))}
+          </nav>
         </div>
       </header>
-
-      <main className="mx-auto max-w-5xl w-full px-6 py-12 flex-1">
-        <div className="rounded-xl border border-dashed border-slate-300 bg-white p-12 text-center">
-          <h2 className="text-xl font-medium text-slate-800">Upload a label to begin</h2>
-          <p className="mt-2 text-slate-500">
-            Single review and batch upload are coming next. This is the project shell.
-          </p>
-        </div>
+      <main className="mx-auto max-w-6xl w-full px-6 py-8 flex-1">
+        <ErrorBoundary>
+          {mode === "applicant" ? <ApplicantForm /> : <AgentQueue />}
+        </ErrorBoundary>
       </main>
     </div>
-  )
+  );
 }
-
-function ApiBadge({ health, error }: { health: Health | null; error: string | null }) {
-  if (error) {
-    return (
-      <span className="rounded-full bg-red-100 px-3 py-1 text-sm font-medium text-red-700">
-        API offline
-      </span>
-    )
-  }
-  if (!health) {
-    return (
-      <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-medium text-slate-600">
-        Connecting…
-      </span>
-    )
-  }
-  return (
-    <span className="rounded-full bg-green-100 px-3 py-1 text-sm font-medium text-green-700">
-      API ok · v{health.version}
-    </span>
-  )
-}
-
-export default App
