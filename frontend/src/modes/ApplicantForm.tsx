@@ -15,10 +15,11 @@ export function ApplicantForm() {
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    const form = e.currentTarget; // capture before await — React nulls e.currentTarget after
     setBusy(true); setError(null);
     try {
-      const { id } = await submitApplication(new FormData(e.currentTarget));
-      setDone(id); e.currentTarget.reset();
+      const { id } = await submitApplication(new FormData(form));
+      setDone(id); form.reset();
     } catch (err) { setError(String(err)); } finally { setBusy(false); }
   }
 

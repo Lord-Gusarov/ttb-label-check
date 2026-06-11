@@ -27,6 +27,9 @@ test("submit → review → approve, with zero console errors", async ({ page })
   await page.locator('input[type="file"]').setInputFiles(LABEL);
   await page.getByRole("button", { name: "Submit application" }).click();
   await expect(page.getByText(/Submitted/)).toBeVisible();
+  // A caught error (e.g. the form-reset bug) surfaces as this banner, not a console error —
+  // assert it explicitly, otherwise a "successful" submit can still be silently broken.
+  await expect(page.getByText(/Could not submit/)).toHaveCount(0);
   await page.screenshot({ path: path.join(ART, "01-submitted.png"), fullPage: true });
 
   await page.getByRole("tab", { name: "Agent review" }).click();
