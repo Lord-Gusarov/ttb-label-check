@@ -7,14 +7,23 @@ with no external CDN (matches the local-first / no-egress constraint).
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.requests import Request
+from starlette.responses import JSONResponse
 
 from app import __version__
+from app.api.applications import router as applications_router
+
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s | %(message)s"
+)
+log = logging.getLogger("labelcheck")
 
 app = FastAPI(
     title="label-check",
@@ -37,9 +46,15 @@ def health() -> dict[str, str]:
     return {"status": "ok", "version": __version__}
 
 
-from app.api.applications import router as applications_router  # noqa: E402
-
 app.include_router(applications_router)
+
+
+@app.exception_handler(Exception)
+async def _unhandled(request: Request, exc: Exception) -> JSONResponse:
+    log.exception("unhandled error: %s %s", request.method, request.url.path)
+    return JSONResponse(
+        status_code=500, content={"detail": "internal error", "path": request.url.path}
+    )
 
 
 # --- Static frontend (only present after the Vite build is copied in) ----------
