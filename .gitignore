@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# uv
+uv.lock
+
+# Node / frontend
+node_modules/
+frontend/dist/
+*.local
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+
+# Runtime artifacts
+backend/app/static/
+/tmp/
+*.log
+
+# Local model weights (downloaded at build/run time, never committed)
+models/
+*.onnx
+*.pt
+*.pdparams

@@ -1,0 +1,27 @@
+@import "tailwindcss";
+
+/* Accessibility-first base: large, high-contrast, calm.
+   The product benchmark is "a 73-year-old can use it" — generous sizing,
+   clear focus rings, no tiny targets. */
+:root {
+  font-size: 18px;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, "Segoe UI", Roboto, sans-serif;
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+/* Always show a visible focus ring for keyboard users. */
+:focus-visible {
+  outline: 3px solid #2563eb;
+  outline-offset: 2px;
+}

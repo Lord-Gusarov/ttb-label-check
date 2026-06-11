@@ -1,0 +1,227 @@
+{
+  "description": "Synthetic seed corpus for the reader bake-off: the original uniform-transform spirits labels PLUS realistic hard cases with intra-label variation (arc/vertical/condensed text, per-element rotation, perspective warp, multi-panel front+back, blur+noise) across spirits and wine.",
+  "canonical_warning": "GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink alcoholic beverages during pregnancy because of the risk of birth defects. (2) Consumption of alcoholic beverages impairs your ability to drive a car or operate machinery, and may cause health problems.",
+  "labels": [
+    {
+      "id": "old_tom_clean",
+      "image": "images/old_tom_clean.png",
+      "variant": "clean",
+      "commodity": "distilled_spirits",
+      "fields": {
+        "brand_name": "OLD TOM DISTILLERY",
+        "class_type": "Kentucky Straight Bourbon Whiskey",
+        "alcohol_content": "45% Alc./Vol. (90 Proof)",
+        "net_contents": "750 mL",
+        "warning_present": true
+      }
+    },
+    {
+      "id": "old_tom_rotated",
+      "image": "images/old_tom_rotated.png",
+      "variant": "rotated",
+      "commodity": "distilled_spirits",
+      "fields": {
+        "brand_name": "OLD TOM DISTILLERY",
+        "class_type": "Kentucky Straight Bourbon Whiskey",
+        "alcohol_content": "45% Alc./Vol. (90 Proof)",
+        "net_contents": "750 mL",
+        "warning_present": true
+      }
+    },
+    {
+      "id": "old_tom_lowlight",
+      "image": "images/old_tom_lowlight.png",
+      "variant": "lowlight",
+      "commodity": "distilled_spirits",
+      "fields": {
+        "brand_name": "OLD TOM DISTILLERY",
+        "class_type": "Kentucky Straight Bourbon Whiskey",
+        "alcohol_content": "45% Alc./Vol. (90 Proof)",
+        "net_contents": "750 mL",
+        "warning_present": true
+      }
+    },
+    {
+      "id": "old_tom_glare",
+      "image": "images/old_tom_glare.png",
+      "variant": "glare",
+      "commodity": "distilled_spirits",
+      "fields": {
+        "brand_name": "OLD TOM DISTILLERY",
+        "class_type": "Kentucky Straight Bourbon Whiskey",
+        "alcohol_content": "45% Alc./Vol. (90 Proof)",
+        "net_contents": "750 mL",
+        "warning_present": true
+      }
+    },
+    {
+      "id": "old_tom_busy",
+      "image": "images/old_tom_busy.png",
+      "variant": "busy",
+      "commodity": "distilled_spirits",
+      "fields": {
+        "brand_name": "OLD TOM DISTILLERY",
+        "class_type": "Kentucky Straight Bourbon Whiskey",
+        "alcohol_content": "45% Alc./Vol. (90 Proof)",
+        "net_contents": "750 mL",
+        "warning_present": true
+      }
+    },
+    {
+      "id": "old_tom_rich_arc",
+      "image": "images/old_tom_rich_arc.png",
+      "variant": "rich_arc_brand",
+      "commodity": "distilled_spirits",
+      "fields": {
+        "brand_name": "OLD TOM DISTILLERY",
+        "class_type": "Kentucky Straight Bourbon Whiskey",
+        "alcohol_content": "45% Alc./Vol. (90 Proof)",
+        "net_contents": "750 mL",
+        "warning_present": true
+      }
+    },
+    {
+      "id": "old_tom_rich_perelement",
+      "image": "images/old_tom_rich_perelement.png",
+      "variant": "rich_per_element_rotation",
+      "commodity": "distilled_spirits",
+      "fields": {
+        "brand_name": "OLD TOM DISTILLERY",
+        "class_type": "Kentucky Straight Bourbon Whiskey",
+        "alcohol_content": "45% Alc./Vol. (90 Proof)",
+        "net_contents": "750 mL",
+        "warning_present": true
+      }
+    },
+    {
+      "id": "old_tom_rich_vertical",
+      "image": "images/old_tom_rich_vertical.png",
+      "variant": "rich_vertical_text",
+      "commodity": "distilled_spirits",
+      "fields": {
+        "brand_name": "OLD TOM DISTILLERY",
+        "class_type": "Kentucky Straight Bourbon Whiskey",
+        "alcohol_content": "45% Alc./Vol. (90 Proof)",
+        "net_contents": "750 mL",
+        "warning_present": true
+      }
+    },
+    {
+      "id": "old_tom_rich_condensed",
+      "image": "images/old_tom_rich_condensed.png",
+      "variant": "rich_condensed",
+      "commodity": "distilled_spirits",
+      "fields": {
+        "brand_name": "OLD TOM DISTILLERY",
+        "class_type": "Kentucky Straight Bourbon Whiskey",
+        "alcohol_content": "45% Alc./Vol. (90 Proof)",
+        "net_contents": "750 mL",
+        "warning_present": true
+      }
+    },
+    {
+      "id": "old_tom_rich_perspective",
+      "image": "images/old_tom_rich_perspective.png",
+      "variant": "rich_perspective",
+      "commodity": "distilled_spirits",
+      "fields": {
+        "brand_name": "OLD TOM DISTILLERY",
+        "class_type": "Kentucky Straight Bourbon Whiskey",
+        "alcohol_content": "45% Alc./Vol. (90 Proof)",
+        "net_contents": "750 mL",
+        "warning_present": true
+      }
+    },
+    {
+      "id": "old_tom_rich_multipanel",
+      "image": "images/old_tom_rich_multipanel.png",
+      "variant": "rich_multipanel",
+      "commodity": "distilled_spirits",
+      "fields": {
+        "brand_name": "OLD TOM DISTILLERY",
+        "class_type": "Kentucky Straight Bourbon Whiskey",
+        "alcohol_content": "45% Alc./Vol. (90 Proof)",
+        "net_contents": "750 mL",
+        "warning_present": true
+      }
+    },
+    {
+      "id": "old_tom_rich_blurnoise",
+      "image": "images/old_tom_rich_blurnoise.png",
+      "variant": "rich_blur_noise",
+      "commodity": "distilled_spirits",
+      "fields": {
+        "brand_name": "OLD TOM DISTILLERY",
+        "class_type": "Kentucky Straight Bourbon Whiskey",
+        "alcohol_content": "45% Alc./Vol. (90 Proof)",
+        "net_contents": "750 mL",
+        "warning_present": true
+      }
+    },
+    {
+      "id": "cedar_ridge_rich_arc_persp",
+      "image": "images/cedar_ridge_rich_arc_persp.png",
+      "variant": "rich_wine_arc_perspective",
+      "commodity": "wine",
+      "fields": {
+        "brand_name": "CEDAR RIDGE VINEYARDS",
+        "class_type": "Napa Valley Cabernet Sauvignon",
+        "alcohol_content": "13.5% Alc./Vol.",
+        "net_contents": "750 mL",
+        "warning_present": true
+      }
+    },
+    {
+      "id": "cedar_ridge_rich_multipanel",
+      "image": "images/cedar_ridge_rich_multipanel.png",
+      "variant": "rich_wine_multipanel",
+      "commodity": "wine",
+      "fields": {
+        "brand_name": "CEDAR RIDGE VINEYARDS",
+        "class_type": "Napa Valley Cabernet Sauvignon",
+        "alcohol_content": "13.5% Alc./Vol.",
+        "net_contents": "750 mL",
+        "warning_present": true
+      }
+    },
+    {
+      "id": "old_tom_rich_circular",
+      "image": "images/old_tom_rich_circular.png",
+      "variant": "rich_circular_brand",
+      "commodity": "distilled_spirits",
+      "fields": {
+        "brand_name": "OLD TOM DISTILLERY",
+        "class_type": "Kentucky Straight Bourbon Whiskey",
+        "alcohol_content": "45% Alc./Vol. (90 Proof)",
+        "net_contents": "750 mL",
+        "warning_present": true
+      }
+    },
+    {
+      "id": "old_tom_rich_semicircle",
+      "image": "images/old_tom_rich_semicircle.png",
+      "variant": "rich_semicircle_brand",
+      "commodity": "distilled_spirits",
+      "fields": {
+        "brand_name": "OLD TOM DISTILLERY",
+        "class_type": "Kentucky Straight Bourbon Whiskey",
+        "alcohol_content": "45% Alc./Vol. (90 Proof)",
+        "net_contents": "750 mL",
+        "warning_present": true
+      }
+    },
+    {
+      "id": "old_tom_rich_seal",
+      "image": "images/old_tom_rich_seal.png",
+      "variant": "rich_seal_medallion",
+      "commodity": "distilled_spirits",
+      "fields": {
+        "brand_name": "OLD TOM DISTILLERY",
+        "class_type": "Kentucky Straight Bourbon Whiskey",
+        "alcohol_content": "45% Alc./Vol. (90 Proof)",
+        "net_contents": "750 mL",
+        "warning_present": true
+      }
+    }
+  ]
+}
