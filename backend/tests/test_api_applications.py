@@ -92,3 +92,18 @@ def test_unsupported_commodity_rejected():
                                   alcohol_content="13%", net_contents="750 mL"),
                         files={"image": ("l.png", fh, "image/png")})
     assert r.status_code == 400
+
+
+@pytest.mark.skipif(not CLEAN.exists(), reason="seed corpus not generated")
+def test_reverify_reruns_and_keeps_status():
+    app_id = _submit().json()["id"]
+    client.get(f"/api/applications/{app_id}")  # initial verification cached
+    client.post(f"/api/applications/{app_id}/decision", json={"decision": "approved"})
+    r = client.post(f"/api/applications/{app_id}/reverify")
+    assert r.status_code == 200
+    assert r.json()["verification"]["overall"] in ("pass", "warn", "needs_review")
+    assert r.json()["status"] == "approved"  # re-running the read doesn't undo the decision
+
+
+def test_reverify_unknown_id_404():
+    assert client.post("/api/applications/none/reverify").status_code == 404

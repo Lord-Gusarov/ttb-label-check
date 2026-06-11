@@ -23,3 +23,8 @@ export async function decide(id: string, decision: string, note: string): Promis
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
   return r.json();
 }
+export async function reverify(id: string): Promise<AppDetail> {
+  const r = await fetch(`/api/applications/${id}/reverify`, { method: "POST" });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
+}

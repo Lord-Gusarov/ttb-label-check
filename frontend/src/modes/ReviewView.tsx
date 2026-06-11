@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { decide, getApplication } from "../api";
+import { decide, getApplication, reverify } from "../api";
 import type { AppDetail, Box, Verdict } from "../types";
 
 const V_COLOR: Record<Verdict, string> = {
@@ -31,7 +31,17 @@ export function ReviewView({ id, onBack }: { id: string; onBack: () => void }) {
 
   return (
     <div className="space-y-4">
-      <button onClick={onBack} className="text-blue-600">← Back to queue</button>
+      <div className="flex items-center gap-3">
+        <button onClick={onBack} className="text-blue-600">← Back to queue</button>
+        {import.meta.env.DEV && (
+          <button
+            onClick={() => reverify(id).then(setApp).catch((e) => setError(String(e)))}
+            className="rounded border border-slate-300 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50"
+            title="Re-run verification (development only)">
+            ↻ Re-run verification (dev)
+          </button>
+        )}
+      </div>
       <h2 className="text-xl font-medium text-slate-800">{app.brand_name}</h2>
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="space-y-2">

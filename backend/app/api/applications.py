@@ -59,19 +59,34 @@ def list_applications() -> list[dict]:
     return [_summary(a) for a in store.list()]
 
 
+def _ensure_verification(a: Application, *, force: bool = False) -> None:
+    """Run (and cache) verification for an application; `force` re-runs even if cached."""
+    if not a.image or (a.verification is not None and not force):
+        return
+    img = cv2.imdecode(np.frombuffer(a.image, np.uint8), cv2.IMREAD_COLOR)
+    if img is None:
+        raise HTTPException(400, "stored image could not be decoded")
+    application = {"brand_name": a.brand_name, "class_type": a.class_type,
+                   "alcohol_content": a.alcohol_content, "net_contents": a.net_contents}
+    a.verification = serialize_verification(verify_label(img, a.commodity_type, application))
+
+
 @router.get("/{app_id}")
 def get_application(app_id: str) -> dict:
     a = store.get(app_id)
     if a is None:
         raise HTTPException(404, "application not found")
-    if a.verification is None and a.image:
-        img = cv2.imdecode(np.frombuffer(a.image, np.uint8), cv2.IMREAD_COLOR)
-        if img is None:
-            raise HTTPException(400, "stored image could not be decoded")
-        application = {"brand_name": a.brand_name, "class_type": a.class_type,
-                       "alcohol_content": a.alcohol_content, "net_contents": a.net_contents}
-        a.verification = serialize_verification(
-            verify_label(img, a.commodity_type, application))
+    _ensure_verification(a)
+    return _detail(a)
+
+
+@router.post("/{app_id}/reverify")
+def reverify(app_id: str) -> dict:
+    """Re-run verification on demand (a dev/QA aid; the UI exposes it only in dev builds)."""
+    a = store.get(app_id)
+    if a is None:
+        raise HTTPException(404, "application not found")
+    _ensure_verification(a, force=True)
     return _detail(a)
 
 
