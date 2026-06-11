@@ -93,18 +93,22 @@ def check_warning_caps(raw_text: str) -> FieldResult:
 
 
 def check_warning_bold(image: np.ndarray, words=None) -> FieldResult:
-    """Bold check via relative stroke width (see app.bold.detector)."""
+    """Bold check via relative stroke width (see app.bold.detector).
+
+    Stroke-width bold detection is inherently approximate (blur/low contrast/small
+    back-panel text muddy the measurement), so it is never a hard FAIL: a confident
+    bold reads PASS, and anything else is NEEDS_REVIEW for the agent to confirm — we
+    don't auto-fail a prefix that may well be bold.
+    """
     finding = detect_warning_bold(image, words=words)
-    if finding.is_bold is True:
-        verdict = Verdict.PASS
-    elif finding.is_bold is False:
-        verdict = Verdict.FAIL
-    else:
-        verdict = Verdict.NEEDS_REVIEW
+    verdict = Verdict.PASS if finding.is_bold is True else Verdict.NEEDS_REVIEW
+    detail = finding.detail
+    if finding.is_bold is False:
+        detail = f"appears not bold ({finding.ratio:.2f}× body) — verify the prefix is bold"
     found = f"{finding.ratio:.2f}× body" if finding.ratio is not None else None
     return FieldResult(
         "warning_bold", "Warning prefix bold", verdict,
-        expected="bold", found=found, detail=finding.detail,
+        expected="bold", found=found, detail=detail,
     )
 
 
