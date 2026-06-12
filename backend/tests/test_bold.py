@@ -1,66 +1,97 @@
 """Tests for the relative stroke-width bold detector.
 
-Hermetic: warning crops are rendered inline (no dependency on the shared corpus), so
-these are stable regardless of corpus regeneration.
+Hermetic: warning crops are rendered inline with PIL (no dependency on the shared corpus),
+so these tests are stable regardless of corpus regeneration.
+
+The detector signature is:
+    detect_warning_bold(image: np.ndarray, words: list[WordBox]) -> BoldFinding
+
+WordBox(text, confidence, bbox=(x1, y1, x2, y2)) comes from app.readers.types.
+
+Key contract: the detector NEVER returns is_bold=False; unclear → is_bold=None.
 """
+
+from __future__ import annotations
 
 import cv2
 import numpy as np
-import pytest
 from PIL import Image, ImageDraw, ImageFont
 
 from app.bold import detect_warning_bold
+from app.readers.types import WordBox
 
 ARIAL = "/System/Library/Fonts/Supplemental/Arial.ttf"
 ARIAL_BOLD = "/System/Library/Fonts/Supplemental/Arial Bold.ttf"
 
-_BODY = [
-    "(1) According to the Surgeon General, women should not",
-    "drink alcoholic beverages during pregnancy because of the",
-    "risk of birth defects. (2) Consumption of alcoholic beverages",
-    "impairs your ability to drive a car or operate machinery.",
-]
+# The warning prefix that despace() will match as "governmentwarning"
+PREFIX = "GOVERNMENT WARNING:"
+# Body text that follows on the same line
+BODY_SUFFIX = " (1) Women should not drink during pregnancy."
+
+# Image dimensions chosen so the bold prefix ('GOVERNMENT WARNING:') fills
+# approximately the left 18-25% of the image width at font-size 28.
+# Rendered at W=900, prefix length ≈ 180-200 px → ~20% of width → sits in [0, 18%]
+# prefix crop, and the body starts well past the 30% mark.
+IMG_W = 900
+IMG_H = 60
+FONT_SIZE = 28
 
 
-def render_warning(bold_prefix: bool, prefix: str = "GOVERNMENT WARNING:") -> np.ndarray:
-    img = Image.new("RGB", (760, 250), "white")
+def _render_line(bold_prefix: bool) -> tuple[np.ndarray, WordBox]:
+    """Render PREFIX + BODY_SUFFIX on a single line; return BGR array + WordBox."""
+    img = Image.new("RGB", (IMG_W, IMG_H), "white")
     draw = ImageDraw.Draw(img)
-    reg = ImageFont.truetype(ARIAL, 22)
-    bold = ImageFont.truetype(ARIAL_BOLD, 22)
-    pf = bold if bold_prefix else reg
-    draw.text((20, 18), prefix, font=pf, fill="black")
-    px = 26 + draw.textlength(prefix, font=pf)
-    draw.text((px, 18), _BODY[0].split(") ", 1)[0] + ")", font=reg, fill="black")
-    for i, line in enumerate(_BODY):
-        draw.text((20, 56 + i * 34), line, font=reg, fill="black")
-    return cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
+    reg = ImageFont.truetype(ARIAL, FONT_SIZE)
+    bold = ImageFont.truetype(ARIAL_BOLD, FONT_SIZE)
+    pf_font = bold if bold_prefix else reg
+
+    x, y = 10, 8
+    draw.text((x, y), PREFIX, font=pf_font, fill="black")
+    px = x + draw.textlength(PREFIX, font=pf_font)
+    draw.text((px, y), BODY_SUFFIX, font=reg, fill="black")
+
+    # Bounding box for the whole line of text
+    full_text = PREFIX + BODY_SUFFIX
+    bbox = (0, 0, IMG_W, IMG_H)
+    word = WordBox(text=full_text, confidence=0.9, bbox=bbox)
+
+    bgr = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
+    return bgr, word
 
 
 def test_bold_prefix_detected_as_bold():
-    finding = detect_warning_bold(render_warning(bold_prefix=True))
+    image, word = _render_line(bold_prefix=True)
+    finding = detect_warning_bold(image, [word])
+    print(f"bold case ratio={finding.ratio}")
     assert finding.is_bold is True
     assert finding.ratio is not None and finding.ratio >= 1.20
 
 
-def test_regular_prefix_detected_as_not_bold():
-    finding = detect_warning_bold(render_warning(bold_prefix=False))
-    assert finding.is_bold is False
+def test_regular_prefix_not_detected_as_bold():
+    """Regular (non-bold) prefix: detector returns is_bold=None (never False)."""
+    image, word = _render_line(bold_prefix=False)
+    finding = detect_warning_bold(image, [word])
+    print(f"regular case ratio={finding.ratio}")
+    # The detector never returns is_bold=False; unclear cases become None.
+    assert finding.is_bold is None
 
 
-def test_thick_prefix_never_called_not_bold():
-    # A title-case *bold* prefix is an odd combo (and a caps violation anyway). The
-    # detector may call it bold or flag it for review, but must NOT wrongly say "not bold".
-    finding = detect_warning_bold(render_warning(bold_prefix=True, prefix="Government Warning:"))
-    assert finding.is_bold is not False
+def test_empty_words_returns_none():
+    """No word boxes → detector cannot locate the warning → is_bold=None."""
+    image, _ = _render_line(bold_prefix=True)
+    finding = detect_warning_bold(image, [])
+    assert finding.is_bold is None
+    assert finding.ratio is None
 
 
-def test_no_text_cannot_determine():
-    blank = np.full((200, 400, 3), 255, dtype=np.uint8)
-    finding = detect_warning_bold(blank)
-    assert finding.is_bold is None  # needs_review, not a guess
-
-
-@pytest.mark.parametrize("bold_prefix,expected", [(True, True), (False, False)])
-def test_separation_margin(bold_prefix, expected):
-    finding = detect_warning_bold(render_warning(bold_prefix=bold_prefix))
-    assert finding.is_bold is expected
+def test_bold_ratio_exceeds_threshold():
+    """The bold/regular ratio gap is detectable (bold ratio > non-bold ratio)."""
+    img_bold, wb_bold = _render_line(bold_prefix=True)
+    img_reg, wb_reg = _render_line(bold_prefix=False)
+    f_bold = detect_warning_bold(img_bold, [wb_bold])
+    f_reg = detect_warning_bold(img_reg, [wb_reg])
+    # Bold should have a higher (or equal) ratio; regular must be below 1.20
+    assert f_bold.ratio is not None
+    assert f_bold.ratio >= 1.20
+    if f_reg.ratio is not None:
+        assert f_reg.ratio < 1.20

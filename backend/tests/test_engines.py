@@ -19,7 +19,7 @@ from app.readers.preprocess import load_image
 CLEAN = Path(__file__).resolve().parents[1] / "corpus" / "images" / "old_tom_clean.png"
 
 # Engines that are always expected to be present (declared in the `readers` extra).
-CORE_ENGINES = {"tesseract", "rapidocr"}
+CORE_ENGINES = {"rapidocr"}
 # Engines that are optional — tested only when installed.
 OPTIONAL_ENGINES = {"easyocr", "paddleocr", "vlm"}
 
