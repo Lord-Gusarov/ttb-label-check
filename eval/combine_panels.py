@@ -23,7 +23,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-REAL = Path(__file__).resolve().parent.parent / "real"
+REAL = Path(__file__).resolve().parent / "data" / "real"
 SRC_IMAGES = REAL / "images"
 OUT_DIR = REAL / "combined"
 SEPARATOR_PX = 8  # white gap between stacked panels, keeps OCR lines from bleeding together

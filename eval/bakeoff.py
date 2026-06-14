@@ -20,10 +20,10 @@ from pathlib import Path
 from app.readers import available_readers
 from app.readers.preprocess import load_image
 
-BACKEND = Path(__file__).resolve().parents[1]
-CORPUS = BACKEND / "corpus"
+CORPUS = Path(__file__).resolve().parent / "data"
+
 MANIFEST = CORPUS / "manifest.json"
-REPORT = BACKEND.parent / "docs" / "evaluation.md"
+REPORT = Path(__file__).resolve().parents[1] / "docs" / "evaluation.md"
 
 REPEATS = 3  # timed passes per image (after a warmup) for stable percentiles
 WARNING_TOKENS = {"government", "warning"}

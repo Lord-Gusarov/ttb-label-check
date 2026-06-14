@@ -24,7 +24,7 @@ from app.readers.preprocess import load_image
 from app.rules.spec.government_warning import missing_canonical_tokens
 from app.rules.warning_region import _anchor_boxes, reread_warning
 
-REAL = Path(__file__).resolve().parent.parent / "real"
+REAL = Path(__file__).resolve().parent / "data" / "real"
 OUT = REAL / "eval.jsonl"
 ANGLES = (2, -2, 5, -5, 10, -10)
 SCALES = (1.5, 2.5)

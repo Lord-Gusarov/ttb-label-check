@@ -23,8 +23,8 @@ from PIL import Image, ImageDraw, ImageEnhance, ImageFont
 from app.rules.spec.government_warning import CANONICAL_WARNING
 
 HERE = Path(__file__).parent
-IMAGES_DIR = HERE / "images"
-MANIFEST = HERE / "manifest.json"
+IMAGES_DIR = HERE / "data" / "images"
+MANIFEST = HERE / "data" / "manifest.json"
 
 FONT_REGULAR = "/System/Library/Fonts/Supplemental/Arial.ttf"
 FONT_BOLD = "/System/Library/Fonts/Supplemental/Arial Bold.ttf"

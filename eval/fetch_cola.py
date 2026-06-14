@@ -41,7 +41,7 @@ except Exception:  # noqa: BLE001
     _SSL = ssl._create_unverified_context()
 
 BASE = "https://www.ttbonline.gov/colasonline"
-OUT = Path(__file__).resolve().parent.parent / "real"
+OUT = Path(__file__).resolve().parent / "data" / "real"
 IMG_DIR = OUT / "images"
 MANIFEST = OUT / "manifest.jsonl"
 

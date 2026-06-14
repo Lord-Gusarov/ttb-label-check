@@ -15,8 +15,8 @@ words are still the canonical field values, so accuracy stays measurable.
 
 Everything is deterministic (seeded) and offline (PIL + cv2 + numpy only).
 
-    uv run python -m corpus.generate        # writes the base 5 + manifest
-    uv run python -m corpus.generate_rich   # APPENDS the rich variants
+    python eval/generate.py        # writes the base 5 + manifest
+    python eval/generate.py_rich   # APPENDS the rich variants
 
 Run order matters: ``generate`` writes a fresh manifest; ``generate_rich`` reads it,
 appends, and rewrites it. Running ``generate_rich`` twice is idempotent (it replaces
@@ -37,8 +37,8 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 from app.rules.spec.government_warning import CANONICAL_WARNING, WARNING_PREFIX
 
 HERE = Path(__file__).parent
-IMAGES_DIR = HERE / "images"
-MANIFEST = HERE / "manifest.json"
+IMAGES_DIR = HERE / "data" / "images"
+MANIFEST = HERE / "data" / "manifest.json"
 
 FONT_REGULAR = "/System/Library/Fonts/Supplemental/Arial.ttf"
 FONT_BOLD = "/System/Library/Fonts/Supplemental/Arial Bold.ttf"
@@ -494,7 +494,7 @@ def main() -> None:
     IMAGES_DIR.mkdir(parents=True, exist_ok=True)
     if not MANIFEST.exists():
         raise SystemExit(
-            "manifest.json not found — run `uv run python -m corpus.generate` first."
+            "manifest.json not found — run `python eval/generate.py` first."
         )
     manifest = json.loads(MANIFEST.read_text())
     labels = manifest["labels"]

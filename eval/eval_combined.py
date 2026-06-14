@@ -28,7 +28,7 @@ from app.pipeline import verify_label
 from app.readers.preprocess import load_image
 from app.rules.result import Verdict
 
-REAL = Path(__file__).resolve().parent.parent / "real"
+REAL = Path(__file__).resolve().parent / "data" / "real"
 COMBINED = REAL / "combined"
 OUT = COMBINED / "eval_pipeline.jsonl"
 

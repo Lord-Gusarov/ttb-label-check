@@ -19,9 +19,9 @@ This module renders three new variants and APPENDS them to the SAME ``manifest.j
 Ground truth is unchanged: however the glyphs are bent, the underlying words are still
 the canonical OLD TOM field values and the canonical government warning (bold prefix).
 
-    uv run python -m corpus.generate          # base manifest
-    uv run python -m corpus.generate_rich      # rich variants
-    uv run python -m corpus.generate_circular  # APPENDS the circular variants
+    python eval/generate.py          # base manifest
+    python eval/generate.py_rich      # rich variants
+    python eval/generate.py_circular  # APPENDS the circular variants
 
 Deterministic (seeded) and fully offline (PIL + numpy only).
 """
@@ -52,8 +52,8 @@ from corpus.generate_rich import (
 )
 
 HERE = Path(__file__).parent
-IMAGES_DIR = HERE / "images"
-MANIFEST = HERE / "manifest.json"
+IMAGES_DIR = HERE / "data" / "images"
+MANIFEST = HERE / "data" / "manifest.json"
 
 SEAL_INK = "#2a1d0c"
 
@@ -305,7 +305,7 @@ def main() -> None:
     IMAGES_DIR.mkdir(parents=True, exist_ok=True)
     if not MANIFEST.exists():
         raise SystemExit(
-            "manifest.json not found — run `uv run python -m corpus.generate` first."
+            "manifest.json not found — run `python eval/generate.py` first."
         )
     manifest = json.loads(MANIFEST.read_text())
     labels = manifest["labels"]

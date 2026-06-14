@@ -23,7 +23,7 @@ import json
 import re
 from pathlib import Path
 
-REAL = Path(__file__).resolve().parent.parent / "real"
+REAL = Path(__file__).resolve().parent / "data" / "real"
 MANIFEST = REAL / "manifest.jsonl"
 BACKUP = REAL / "manifest.fetched.jsonl"
 VISION = REAL / "combined" / "declared_vision.jsonl"

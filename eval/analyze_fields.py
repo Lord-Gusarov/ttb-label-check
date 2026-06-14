@@ -19,7 +19,7 @@ os.environ["WARNING_ESCALATION_MODEL"] = "off"  # local only — no model, no eg
 from app.pipeline import verify_label  # noqa: E402
 from app.readers.preprocess import load_image  # noqa: E402
 
-REAL = Path(__file__).resolve().parent.parent / "real"
+REAL = Path(__file__).resolve().parent / "data" / "real"
 COMBINED = REAL / "combined"
 FIELDS = ("brand_name", "class_type", "alcohol_content", "net_contents", "warning_text")
 
