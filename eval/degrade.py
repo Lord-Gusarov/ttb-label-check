@@ -62,3 +62,46 @@ def render_warning(omit: list[str] | None = None, width: int = 900) -> tuple[np.
             line = trial
     draw.text((x, y), line, fill="black", font=font)
     return cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR), [o.lower() for o in omit]
+
+
+_LABEL_FIELD_ORDER = (
+    "brand_name", "class_type", "alcohol_content", "net_contents", "government_warning"
+)
+
+
+def render_label(
+    values: dict[str, str], omit: list[str] | None = None, width: int = 1000
+) -> tuple[np.ndarray, list[str]]:
+    """Typeset a synthetic full label from `values` (the five reader fields); each field in
+    `omit` is left OFF the image entirely. Returns (BGR image, removed_tokens) where removed
+    is the alnum tokens of the omitted fields — exact GT for hallucination on the full reader."""
+    omit_set = set(omit or [])
+    removed: list[str] = []
+    img = Image.new("RGB", (width, 700), "white")
+    draw = ImageDraw.Draw(img)
+    font = ImageFont.load_default()
+
+    y = 15
+    for field in _LABEL_FIELD_ORDER:
+        if field not in values:
+            continue
+        val = values[field]
+        if field in omit_set:
+            removed.extend(_tok(val))
+            continue
+        if field == "government_warning":  # wrap the long paragraph
+            line = ""
+            for word in val.split():
+                trial = f"{line} {word}".strip()
+                if draw.textlength(trial, font=font) > width - 20:
+                    draw.text((10, y), line, fill="black", font=font)
+                    y += 16
+                    line = word
+                else:
+                    line = trial
+            draw.text((10, y), line, fill="black", font=font)
+            y += 16
+        else:
+            draw.text((10, y), val, fill="black", font=font)
+            y += 26
+    return cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR), removed

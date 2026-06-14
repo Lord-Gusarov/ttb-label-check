@@ -4,7 +4,7 @@ Direct-to-model (Tier 1 absent): degrade warning crops/renders with KNOWN remove
 transcribe each with a declared-blind warning prompt, and measure completeness (recall) and
 hallucination (fabricated = model emits a removed token). Not part of the default test suite.
 
-Usage:  python corpus/tools/eval_vlm.py
+Usage:  python eval/eval_vlm.py
 """
 
 from __future__ import annotations
@@ -14,8 +14,9 @@ import re
 import cv2
 import numpy as np
 
-from app.escalation import _chat_json, judge_warning_bold
-from corpus.tools.degrade import render_warning
+from app.escalation import _chat_json, escalate_label_read, judge_warning_bold
+from app.rules.spec.government_warning import CANONICAL_WARNING
+from degrade import render_label, render_warning
 
 
 def _tok(text: str) -> list[str]:
@@ -73,6 +74,42 @@ def run_bold_slice() -> dict[str, int]:
     return bold_accuracy(cases)
 
 
+def label_field_report(result: dict, values: dict, omitted: str) -> dict:
+    """Score one full-label read against ground truth: per field, recall when present, or
+    the fabricated tokens when that field was omitted from the image (= hallucination)."""
+    report: dict = {}
+    for field, value in values.items():
+        toks = _tok(value)
+        if field == omitted:
+            report[field] = {"omitted": True, "fabricated": fabricated_tokens(result.get(field) or "", toks)}
+        else:
+            report[field] = {"omitted": False, "recall": recall(result.get(field) or "", toks)}
+    return report
+
+
+#: A synthetic but realistic full label for evaluating the PRODUCTION reader (escalate_label_read).
+_SYNTH_LABEL = {
+    "brand_name": "OLD TOM DISTILLERY",
+    "class_type": "KENTUCKY STRAIGHT BOURBON WHISKEY",
+    "alcohol_content": "40% ALC/VOL",
+    "net_contents": "750 mL",
+    "government_warning": CANONICAL_WARNING,
+}
+
+
+def run_label_eval(values: dict | None = None) -> list[tuple[str, dict]]:
+    """Run the ACTUAL production reader (escalate_label_read / _LABEL_PROMPT) on a clean
+    synthetic label and on variants with one field omitted; report per-field recall and,
+    for the omitted field, whether the reader invented it from memory."""
+    values = values or _SYNTH_LABEL
+    out: list[tuple[str, dict]] = []
+    for omitted in ("", "alcohol_content", "net_contents", "government_warning"):
+        img, _ = render_label(values, omit=[omitted] if omitted else [])
+        result = escalate_label_read(img) or {}
+        out.append((omitted or "(clean)", label_field_report(result, values, omitted)))
+    return out
+
+
 def main() -> None:
     # Missing-words family (synthetic, exact GT): omit one required token at a time.
     cases = [render_warning(omit=[w]) for w in ("not", "pregnancy", "health")]
@@ -87,6 +124,17 @@ def main() -> None:
 
     slice_ = run_bold_slice()
     print(f"bold-judge: {slice_['correct']}/{slice_['n']} correct, false-yes={slice_['false_yes']}")
+
+    # Production reader (full _LABEL_PROMPT, all five fields) — accuracy + per-field hallucination.
+    print("\n-- production reader (escalate_label_read) --")
+    for omitted, report in run_label_eval():
+        parts = []
+        for field, r in report.items():
+            if r["omitted"]:
+                parts.append(f"{field}=OMITTED{' FABRICATED' + str(r['fabricated']) if r['fabricated'] else ' ok'}")
+            else:
+                parts.append(f"{field} recall={r['recall']:.2f}")
+        print(f"  omit={omitted:18} " + "  ".join(parts))
 
 
 if __name__ == "__main__":

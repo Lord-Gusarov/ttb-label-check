@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 
 from app.readers.types import WordBox
-from corpus.tools.degrade import truncate, occlude_boxes, render_warning
+from degrade import truncate, occlude_boxes, render_label, render_warning
 
 
 def _wb(text, x1, y1, x2, y2):
@@ -38,7 +38,31 @@ def test_render_warning_omits_tokens_and_reports_them():
     assert img.ndim == 3 and img.shape[2] == 3
 
 
-from corpus.tools.eval_vlm import bold_accuracy, fabricated_tokens, recall
+def test_render_label_omits_field_tokens():
+    img, removed = render_label(
+        {"brand_name": "OLD TOM", "alcohol_content": "40% ALC/VOL"}, omit=["alcohol_content"]
+    )
+    assert removed == ["40", "alc", "vol"]  # tokens of the omitted field's value
+    assert img.ndim == 3 and img.shape[2] == 3
+
+
+from eval_vlm import bold_accuracy, fabricated_tokens, label_field_report, recall
+
+
+def test_label_field_report_flags_fabricated_omitted_field():
+    values = {"brand_name": "OLD TOM", "alcohol_content": "40% ALC/VOL"}
+    result = {"brand_name": "OLD TOM", "alcohol_content": "40% ALC/VOL"}  # model recited omitted ABV
+    rep = label_field_report(result, values, omitted="alcohol_content")
+    assert rep["alcohol_content"]["omitted"] is True
+    assert "40" in rep["alcohol_content"]["fabricated"]
+    assert rep["brand_name"]["recall"] == 1.0
+
+
+def test_label_field_report_no_fabrication_when_field_blank():
+    values = {"alcohol_content": "40% ALC/VOL"}
+    result = {"alcohol_content": ""}
+    rep = label_field_report(result, values, omitted="alcohol_content")
+    assert rep["alcohol_content"]["fabricated"] == []
 
 
 def test_bold_accuracy_scores_votes_against_truth():
@@ -68,8 +92,8 @@ def test_recall_counts_visible_tokens_found():
     reason="live VLM eval is opt-in: set RUN_VLM_EVAL=1 (and a model key) to run",
 )
 def test_vlm_does_not_fabricate_omitted_word():
-    from corpus.tools.degrade import render_warning
-    from corpus.tools.eval_vlm import fabricated_tokens, transcribe_warning
+    from degrade import render_warning
+    from eval_vlm import fabricated_tokens, transcribe_warning
 
     img, removed = render_warning(omit=["pregnancy"])
     out = transcribe_warning(img)
