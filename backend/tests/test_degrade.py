@@ -1,0 +1,35 @@
+"""Degradation helpers produce exact removed-token ground truth."""
+
+from __future__ import annotations
+
+import numpy as np
+
+from app.readers.types import WordBox
+from corpus.tools.degrade import truncate, occlude_boxes, render_warning
+
+
+def _wb(text, x1, y1, x2, y2):
+    return WordBox(text=text, confidence=1.0, bbox=(x1, y1, x2, y2))
+
+
+def test_truncate_removes_tail_tokens():
+    img = np.full((100, 100, 3), 255, dtype=np.uint8)
+    words = [_wb("alpha", 0, 0, 40, 20), _wb("beta", 0, 40, 40, 60), _wb("gamma", 0, 70, 40, 90)]
+    cropped, removed = truncate(img, words, at_y=65)
+    assert cropped.shape[0] == 65
+    assert removed == ["gamma"]
+
+
+def test_occlude_boxes_removes_covered_tokens():
+    img = np.full((100, 100, 3), 255, dtype=np.uint8)
+    words = [_wb("alpha", 0, 0, 40, 20), _wb("beta", 50, 0, 90, 20)]
+    out, removed = occlude_boxes(img, words, [1])
+    assert removed == ["beta"]
+    assert (out[0:20, 50:90] == 0).all()  # covered region blacked out
+    assert (out[0:20, 0:40] == 255).all()  # untouched word intact
+
+
+def test_render_warning_omits_tokens_and_reports_them():
+    img, removed = render_warning(omit=["not"])
+    assert removed == ["not"]
+    assert img.ndim == 3 and img.shape[2] == 3
