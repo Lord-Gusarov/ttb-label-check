@@ -8,6 +8,8 @@ import numpy as np
 from app import escalation
 from app.bold.detector import detect_warning_bold
 from app.readers.types import WordBox
+from app.rules import warning as warning_rules
+from app.rules.result import Verdict
 
 
 def _canvas(h=200, w=600):
@@ -89,3 +91,25 @@ def test_judge_warning_bold_rejects_invalid_value(monkeypatch):
     monkeypatch.setattr(escalation, "_chat_json", lambda *a, **k: {"bold": "maybe"})
     monkeypatch.setenv("WARNING_ESCALATION_MODEL", "openai:gpt-5.4-mini")
     assert escalation.judge_warning_bold(np.zeros((40, 120, 3), dtype="uint8")) is None
+
+
+def test_tiebreak_promotes_unclear_to_pass(monkeypatch):
+    # Local detector unclear -> VLM says yes -> PASS.
+    from app.bold.detector import BoldFinding
+    monkeypatch.setattr(warning_rules, "detect_warning_bold",
+                        lambda img, words: BoldFinding(None, 1.1, "unclear"))
+    monkeypatch.setattr(warning_rules, "judge_warning_bold", lambda crop: "yes")
+    fr = warning_rules.check_warning_bold(np.zeros((40, 120, 3), dtype="uint8"), [])
+    assert fr.verdict is Verdict.PASS
+
+
+def test_tiebreak_not_called_when_local_confident(monkeypatch):
+    from app.bold.detector import BoldFinding
+    monkeypatch.setattr(warning_rules, "detect_warning_bold", lambda img, words: BoldFinding(True, 1.5, "bold"))
+    called = {"n": 0}
+    def _spy(crop):
+        called["n"] += 1
+        return "no"
+    monkeypatch.setattr(warning_rules, "judge_warning_bold", _spy)
+    fr = warning_rules.check_warning_bold(np.zeros((40, 120, 3), dtype="uint8"), [])
+    assert fr.verdict is Verdict.PASS and called["n"] == 0
