@@ -48,6 +48,7 @@ def test_non_bold_prefix_is_not_true():
     ]
     finding = detect_warning_bold(img, words)
     assert finding.is_bold is not True  # False or None, never a confident bold
+    assert finding.ratio is not None and finding.ratio < 1.2  # measured, below bold threshold
 
 
 def test_no_prefix_box_returns_none():
@@ -55,3 +56,18 @@ def test_no_prefix_box_returns_none():
     finding = detect_warning_bold(img, [_wb("something else", 10, 10, 100, 30)])
     assert finding.is_bold is None
     assert "locate" in finding.detail
+
+
+def test_tiny_glyphs_are_measured_via_upscale():
+    # Glyphs well below _MIN_GLYPH_H must still be measurable (the _prep upscale path),
+    # not crash on the CLAHE step and not silently return None for "could not measure".
+    img = _canvas(h=80, w=400)
+    _draw(img, "GOVERNMENT WARNING", (5, 18), 0.3, 2)            # tiny bold prefix
+    _draw(img, "according to the surgeon general", (5, 40), 0.3, 1)  # tiny thin body
+    words = [
+        _wb("GOVERNMENT", 4, 8, 95, 22),
+        _wb("WARNING", 100, 8, 165, 22),
+        _wb("according to the surgeon general", 4, 30, 250, 44),
+    ]
+    finding = detect_warning_bold(img, words)
+    assert finding.ratio is not None  # a measurement was produced, no crash

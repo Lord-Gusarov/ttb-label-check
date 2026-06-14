@@ -57,8 +57,10 @@ def _prep(crop: np.ndarray, glyph_h: int) -> np.ndarray:
     """Upscale + contrast-normalize tiny/low-contrast crops so stroke width is measurable."""
     if glyph_h >= _MIN_GLYPH_H or crop.size == 0:
         return crop
-    scale = max(1, round(_MIN_GLYPH_H / max(1, glyph_h)) + 1)
+    scale = min(6, max(1, round(_MIN_GLYPH_H / max(1, glyph_h)) + 1))
     up = cv2.resize(crop, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
+    if up.ndim == 3:
+        up = cv2.cvtColor(up, cv2.COLOR_BGR2GRAY)
     return cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8)).apply(up)
 
 
@@ -91,10 +93,11 @@ def detect_warning_bold(image: np.ndarray, words: list[WordBox] | None) -> BoldF
     anchor = min(prefix, key=lambda w: w.bbox[1])  # topmost prefix box
     ah = anchor.bbox[3] - anchor.bbox[1]
     band_bottom = anchor.bbox[1] + max(1, _BODY_BAND * ah)
-    prefix_ids = {id(w) for w in prefix}
+    prefix_set = set(prefix)
+    top = anchor.bbox[1] - ah // 2  # allow same-line jitter, exclude the line above the prefix
     body = [
         w for w in words
-        if id(w) not in prefix_ids and anchor.bbox[1] - ah <= w.bbox[1] <= band_bottom
+        if w not in prefix_set and top <= w.bbox[1] <= band_bottom
     ]
     if not body:
         return BoldFinding(None, None, "no body text near the warning prefix to compare against")
