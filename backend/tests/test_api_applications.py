@@ -12,9 +12,9 @@ client = TestClient(app)
 
 @pytest.fixture(autouse=True)
 def _clear_store():
-    store._items.clear()
+    store.clear()
     yield
-    store._items.clear()
+    store.clear()
 
 
 def _submit(**overrides):
@@ -37,6 +37,16 @@ def test_submit_then_list():
 
 
 @pytest.mark.skipif(not CLEAN.exists(), reason="seed corpus not generated")
+def test_list_includes_overall_for_triage():
+    # The queue triages "clear / recommend approve" vs "needs attention", so the list
+    # summary carries each app's overall verdict (from its cached verification).
+    app_id = _submit().json()["id"]
+    client.get(f"/api/applications/{app_id}")  # triggers + caches verification
+    summary = next(a for a in client.get("/api/applications").json() if a["id"] == app_id)
+    assert summary["overall"] in ("pass", "warn", "needs_review")
+
+
+@pytest.mark.skipif(not CLEAN.exists(), reason="seed corpus not generated")
 def test_detail_runs_verification_clean_label_passes():
     app_id = _submit().json()["id"]
     detail = client.get(f"/api/applications/{app_id}").json()
@@ -47,11 +57,27 @@ def test_detail_runs_verification_clean_label_passes():
 
 
 @pytest.mark.skipif(not CLEAN.exists(), reason="seed corpus not generated")
-def test_wrong_abv_flags_fail():
+def test_preview_verifies_without_persisting():
+    fields = dict(commodity_type="distilled_spirits", brand_name="OLD TOM DISTILLERY",
+                  class_type="Kentucky Straight Bourbon Whiskey",
+                  alcohol_content="45% Alc./Vol. (90 Proof)", net_contents="750 mL")
+    before = len(client.get("/api/applications").json())
+    with open(CLEAN, "rb") as fh:
+        r = client.post("/api/applications/preview", data=fields,
+                        files={"image": ("label.png", fh, "image/png")})
+    assert r.status_code == 200, r.text
+    assert r.json()["overall"] in ("pass", "warn", "needs_review", "fail")
+    after = len(client.get("/api/applications").json())
+    assert after == before  # preview must NOT create a queue item
+
+
+@pytest.mark.skipif(not CLEAN.exists(), reason="seed corpus not generated")
+def test_wrong_abv_flags_review():
     app_id = _submit(alcohol_content="40% Alc./Vol.").json()["id"]
     detail = client.get(f"/api/applications/{app_id}").json()
     fields = {f["field"]: f for f in detail["verification"]["fields"]}
-    assert fields["alcohol_content"]["verdict"] == "fail"
+    # Flagged for the agent (NEEDS_REVIEW), not auto-rejected — only the agent's decision rejects.
+    assert fields["alcohol_content"]["verdict"] == "needs_review"
 
 
 def test_decision_updates_status():
@@ -80,7 +106,7 @@ def test_bad_decision_rejected():
 
 def test_unsupported_commodity_rejected():
     from app.store import store as _s
-    _s._items.clear()
+    _s.clear()
     from pathlib import Path
     clean = Path(__file__).resolve().parents[1] / "corpus" / "images" / "old_tom_clean.png"
     if not clean.exists():
@@ -88,10 +114,19 @@ def test_unsupported_commodity_rejected():
         pytest.skip("seed corpus not generated")
     with open(clean, "rb") as fh:
         r = client.post("/api/applications",
-                        data=dict(commodity_type="wine", brand_name="X", class_type="Y",
+                        data=dict(commodity_type="cider", brand_name="X", class_type="Y",
                                   alcohol_content="13%", net_contents="750 mL"),
                         files={"image": ("l.png", fh, "image/png")})
     assert r.status_code == 400
+    # All three supported commodities are accepted (wine/malt rulesets are wired).
+    for commodity in ("wine", "malt_beverage"):
+        with open(clean, "rb") as fh:
+            r = client.post("/api/applications",
+                            data=dict(commodity_type=commodity, brand_name="X",
+                                      class_type="Y", alcohol_content="13%",
+                                      net_contents="750 mL"),
+                            files={"image": ("l.png", fh, "image/png")})
+        assert r.status_code == 201, commodity
 
 
 @pytest.mark.skipif(not CLEAN.exists(), reason="seed corpus not generated")
