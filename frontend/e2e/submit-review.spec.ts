@@ -8,8 +8,12 @@ const LABEL = path.resolve("../backend/corpus/images/old_tom_rich_vertical.png")
 
 // Playwright's single-point hover can "teleport" the cursor without firing mouseover, so
 // React's onMouseEnter never fires. Move from a neutral point with steps so it registers.
-async function hoverField(page: import("@playwright/test").Page, text: string) {
-  const t = page.getByText(text, { exact: false }).first();
+async function hoverField(
+  page: import("@playwright/test").Page,
+  text: string,
+  root?: import("@playwright/test").Locator,
+) {
+  const t = (root ?? page).getByText(text, { exact: false }).first();
   await t.scrollIntoViewIfNeeded();
   const b = await t.boundingBox();
   if (!b) throw new Error(`no bounding box for "${text}"`);
@@ -60,16 +64,18 @@ test("submit shows in-page feedback; agent approves from the queue", async ({ pa
   await expect(page.getByRole("button", { name: "Approve" })).toHaveCount(0);
   await page.screenshot({ path: path.join(ART, "01-check-feedback.png"), fullPage: true });
 
-  // Net contents highlights its region on hover (vertical "750 mL").
-  const label = page.getByAltText("submitted label");
+  // Net contents highlights its region on hover (vertical "750 mL"). Scope to the feedback
+  // panel — the form (still mounted) has its own "Net contents" label.
+  const feedback = page.getByTestId("check-feedback");
+  const label = feedback.getByAltText("submitted label");
   await expect(label).toBeVisible();
   await expect.poll(() => label.evaluate((e) => (e as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
-  await hoverField(page, "Net contents");
+  await hoverField(page, "Net contents", feedback);
   await expect.poll(() => page.locator("svg rect").count()).toBeGreaterThan(0);
   await page.screenshot({ path: path.join(ART, "02-net-contents-highlight.png"), fullPage: true });
 
   // Government warning highlights EVERY line, not just the prefix (>= 2 rects).
-  await hoverField(page, "Government warning text");
+  await hoverField(page, "Government warning text", feedback);
   await expect.poll(() => page.locator("svg rect").count()).toBeGreaterThan(1);
   await page.screenshot({ path: path.join(ART, "02b-warning-highlight.png"), fullPage: true });
 
@@ -122,7 +128,9 @@ test("hard arc label is rescued by Tier-1 rotation and the UX shows it", async (
   await expect(
     page.getByText(/Looks good — ready to submit|Review these before submitting/).first(),
   ).toBeVisible({ timeout: 45_000 });
-  await expect(page.getByText(/re-read with rotation|model assistance|needs review/i).first()).toBeVisible();
+  // Outcome is visible, never silent: with the model on it shows the escalation note; with it
+  // off (air-gapped CI) the warning is flagged for human review ("… — read it").
+  await expect(page.getByText(/re-read with rotation|model assistance|read it/i).first()).toBeVisible();
   await page.screenshot({ path: path.join(ART, "04-rotation-rescue.png"), fullPage: true });
 });
 
@@ -135,8 +143,12 @@ test("a clean label lands in 'Recommended to approve' and fast-clears in one cli
   await page.getByPlaceholder("45% Alc./Vol. (90 Proof)").fill("45% Alc./Vol. (90 Proof)");
   await page.getByPlaceholder("750 mL").fill("750 mL");
   await page.locator('input[type="file"]').setInputFiles(CLEAN);
-  await page.getByRole("button", { name: "Submit for review" }).click();
-  await expect(page.getByText("Submitted — automated check complete")).toBeVisible({ timeout: 45_000 });
+  await page.getByRole("button", { name: "Check label" }).click();
+  await expect(
+    page.getByText(/Looks good — ready to submit|Review these before submitting/).first(),
+  ).toBeVisible({ timeout: 45_000 });
+  await page.getByRole("button", { name: /^Submit/ }).click();
+  await expect(page.getByText("Submitted — now in the review queue")).toBeVisible();
 
   // In the queue it's triaged under "Recommended to approve" and clears without opening it.
   await page.goto("/queue");
