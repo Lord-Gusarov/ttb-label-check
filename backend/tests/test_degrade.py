@@ -38,7 +38,15 @@ def test_render_warning_omits_tokens_and_reports_them():
     assert img.ndim == 3 and img.shape[2] == 3
 
 
-from corpus.tools.eval_vlm import fabricated_tokens, recall
+from corpus.tools.eval_vlm import bold_accuracy, fabricated_tokens, recall
+
+
+def test_bold_accuracy_scores_votes_against_truth():
+    cases = [("yes", True), ("no", False), ("yes", False), ("unclear", True)]
+    acc = bold_accuracy(cases)
+    assert acc["correct"] == 2          # (yes,True) and (no,False)
+    assert acc["false_yes"] == 1        # (yes,False)
+    assert acc["n"] == 4
 
 
 def test_fabricated_tokens_flags_emitted_removed_token():
