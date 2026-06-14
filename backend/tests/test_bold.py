@@ -71,3 +71,17 @@ def test_tiny_glyphs_are_measured_via_upscale():
     ]
     finding = detect_warning_bold(img, words)
     assert finding.ratio is not None  # a measurement was produced, no crash
+
+
+from app import escalation
+
+
+def test_judge_warning_bold_parses_yes(monkeypatch):
+    monkeypatch.setattr(escalation, "_chat_json", lambda *a, **k: {"bold": "yes"})
+    monkeypatch.setenv("WARNING_ESCALATION_MODEL", "openai:gpt-5.4-mini")
+    assert escalation.judge_warning_bold(np.zeros((40, 120, 3), dtype="uint8")) == "yes"
+
+
+def test_judge_warning_bold_disabled_returns_none(monkeypatch):
+    monkeypatch.setenv("WARNING_ESCALATION_MODEL", "off")
+    assert escalation.judge_warning_bold(np.zeros((40, 120, 3), dtype="uint8")) is None
