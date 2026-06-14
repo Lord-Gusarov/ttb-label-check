@@ -33,3 +33,19 @@ def test_render_warning_omits_tokens_and_reports_them():
     img, removed = render_warning(omit=["not"])
     assert removed == ["not"]
     assert img.ndim == 3 and img.shape[2] == 3
+
+
+from corpus.tools.eval_vlm import fabricated_tokens, recall
+
+
+def test_fabricated_tokens_flags_emitted_removed_token():
+    # model output contains 'pregnancy' which was removed -> fabrication
+    assert fabricated_tokens("during pregnancy because", ["pregnancy"]) == ["pregnancy"]
+
+
+def test_fabricated_tokens_none_when_absent():
+    assert fabricated_tokens("according to the surgeon general", ["pregnancy"]) == []
+
+
+def test_recall_counts_visible_tokens_found():
+    assert recall("alpha beta", ["alpha", "beta", "gamma"]) == 2 / 3
