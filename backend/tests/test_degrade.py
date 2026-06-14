@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import os
+
 import numpy as np
+import pytest
 
 from app.readers.types import WordBox
 from corpus.tools.degrade import truncate, occlude_boxes, render_warning
@@ -49,3 +52,17 @@ def test_fabricated_tokens_none_when_absent():
 
 def test_recall_counts_visible_tokens_found():
     assert recall("alpha beta", ["alpha", "beta", "gamma"]) == 2 / 3
+
+
+@pytest.mark.vlm
+@pytest.mark.skipif(
+    not os.environ.get("RUN_VLM_EVAL"),
+    reason="live VLM eval is opt-in: set RUN_VLM_EVAL=1 (and a model key) to run",
+)
+def test_vlm_does_not_fabricate_omitted_word():
+    from corpus.tools.degrade import render_warning
+    from corpus.tools.eval_vlm import fabricated_tokens, transcribe_warning
+
+    img, removed = render_warning(omit=["pregnancy"])
+    out = transcribe_warning(img)
+    assert fabricated_tokens(out, removed) == [], f"model recited removed word: {out!r}"

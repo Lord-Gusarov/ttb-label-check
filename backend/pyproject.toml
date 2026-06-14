@@ -8,6 +8,7 @@ dependencies = [
     "uvicorn[standard]>=0.32",
     "pydantic>=2.9",
     "python-multipart>=0.0.12",
+    "openai>=2.41.1",
 ]
 
 [project.optional-dependencies]
@@ -42,6 +43,7 @@ packages = ["app"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+markers = ["vlm: live VLM eval tests; opt-in via RUN_VLM_EVAL=1 (skipped by default)"]
 
 [tool.mypy]
 python_version = "3.12"
