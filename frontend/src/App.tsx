@@ -5,8 +5,8 @@ import { QueuePage } from "./pages/QueuePage";
 import { ReviewPage } from "./pages/ReviewPage";
 
 const NAV = [
-  { to: "/queue", label: "Review queue", glyph: "▤" },
   { to: "/submit", label: "Submit application", glyph: "＋" },
+  { to: "/queue", label: "Review queue", glyph: "▤" },
 ];
 
 export default function App() {
@@ -18,11 +18,11 @@ export default function App() {
         <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-8 md:px-10">
           <ErrorBoundary>
             <Routes>
-              <Route path="/" element={<Navigate to="/queue" replace />} />
+              <Route path="/" element={<Navigate to="/submit" replace />} />
               <Route path="/submit" element={<SubmitPage />} />
               <Route path="/queue" element={<QueuePage />} />
               <Route path="/queue/:id" element={<ReviewPage />} />
-              <Route path="*" element={<Navigate to="/queue" replace />} />
+              <Route path="*" element={<Navigate to="/submit" replace />} />
             </Routes>
           </ErrorBoundary>
         </main>

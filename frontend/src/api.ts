@@ -1,5 +1,11 @@
-import type { AppDetail, AppSummary } from "./types";
+import type { AppDetail, AppSummary, Verification } from "./types";
 
+/** Verify a label WITHOUT persisting it — the submit-time self-check. */
+export async function previewApplication(form: FormData): Promise<Verification> {
+  const r = await fetch("/api/applications/preview", { method: "POST", body: form });
+  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail ?? `HTTP ${r.status}`);
+  return r.json();
+}
 export async function submitApplication(form: FormData): Promise<{ id: string }> {
   const r = await fetch("/api/applications", { method: "POST", body: form });
   if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail ?? `HTTP ${r.status}`);

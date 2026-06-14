@@ -8,7 +8,8 @@ export default defineConfig({
   timeout: 60_000,
   webServer: [
     {
-      command: "cd ../backend && uv run uvicorn app.main:app --port 8000",
+      // E2E runs fully local (no model escalation) for speed + determinism.
+      command: "cd ../backend && WARNING_ESCALATION_MODEL=off LABEL_CHECK_DB=/tmp/label-check-e2e.db uv run uvicorn app.main:app --port 8000",
       url: "http://localhost:8000/api/health",
       reuseExistingServer: true,
       timeout: 120_000,
