@@ -75,9 +75,12 @@ requirement, not an afterthought.
 
 Concrete flows each role performs. Phase-1 cases are built; Phase-2 is designed, not yet built.
 
-**UC1 — Submit an application** *(Applicant · built)*
-The Applicant enters the declared fields and uploads the label image, and submits. → A new
-application appears in the review queue, awaiting review.
+**UC1 — Submit an application (check-then-confirm)** *(Applicant · built)*
+The Applicant enters the declared fields and uploads the label image, then **Checks** it: the
+automated reading + rules run as a pre-flight and the results are shown inline — nothing is
+persisted yet. The Applicant either corrects a flagged field and re-checks, or **confirms**
+("Submit" / "Submit anyway" — a TTB reviewer makes the final decision). → Only on confirmation
+does a new application enter the review queue.
 
 **UC2 — Review a single application** *(Agent · built)*
 The Agent opens an application from the queue. The system reads the label and shows per-field
@@ -101,7 +104,7 @@ settled when built.*
 A label is shot at an angle, with glare, or at low resolution. → The affected checks resolve to
 **NEEDS REVIEW** ("request a better image"), never a crash and never a confident-but-wrong verdict.
 
-**Out of scope** (named so validation isn't held to them): applicant self-service pre-check;
+**Out of scope** (named so validation isn't held to them):
 COLA integration; production PII/retention; *judgment* checks (misleading/health claims,
 prohibited graphics, geographic substantiation); full beer/wine depth (spirits first); perfect
 OCR of curved-rim "seal" text.
