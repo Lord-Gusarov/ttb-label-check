@@ -22,7 +22,7 @@ def test_merge_adopts_only_field_improvements():
     assert merged["brand_name"] is Verdict.PASS  # improved → adopted
     assert merged["alcohol_content"] is Verdict.PASS  # candidate worse → kept local
 
-CORPUS = Path(__file__).resolve().parents[1] / "corpus" / "images"
+CORPUS = Path(__file__).resolve().parent / "fixtures" / "labels"
 CLEAN = CORPUS / "old_tom_clean.png"
 CIRCULAR = CORPUS / "old_tom_rich_circular.png"  # arc-laid-out warning → needs rotation
 

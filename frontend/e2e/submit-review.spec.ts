@@ -4,7 +4,7 @@ import path from "path";
 
 const ART = path.resolve("artifacts/e2e");
 // Vertical label: exercises the net-contents highlight case the submitter flagged.
-const LABEL = path.resolve("../backend/corpus/images/old_tom_rich_vertical.png");
+const LABEL = path.resolve("../backend/tests/fixtures/labels/old_tom_rich_vertical.png");
 
 // Playwright's single-point hover can "teleport" the cursor without firing mouseover, so
 // React's onMouseEnter never fires. Move from a neutral point with steps so it registers.
@@ -112,7 +112,7 @@ test("submit shows in-page feedback; agent approves from the queue", async ({ pa
 
 test("hard arc label is rescued by Tier-1 rotation and the UX shows it", async ({ page }) => {
   fs.mkdirSync(ART, { recursive: true });
-  const ARC = path.resolve("../backend/corpus/images/old_tom_rich_circular.png");
+  const ARC = path.resolve("../backend/tests/fixtures/labels/old_tom_rich_circular.png");
   await page.goto("/submit");
   await page.getByPlaceholder("OLD TOM DISTILLERY").fill("OLD TOM DISTILLERY");
   await page.getByPlaceholder("Kentucky Straight Bourbon Whiskey").fill("Kentucky Straight Bourbon Whiskey");
@@ -136,7 +136,7 @@ test("hard arc label is rescued by Tier-1 rotation and the UX shows it", async (
 
 test("a clean label lands in 'Recommended to approve' and fast-clears in one click", async ({ page }) => {
   fs.mkdirSync(ART, { recursive: true });
-  const CLEAN = path.resolve("../backend/corpus/images/old_tom_clean.png");
+  const CLEAN = path.resolve("../backend/tests/fixtures/labels/old_tom_clean.png");
   await page.goto("/submit");
   await page.getByPlaceholder("OLD TOM DISTILLERY").fill("OLD TOM DISTILLERY");
   await page.getByPlaceholder("Kentucky Straight Bourbon Whiskey").fill("Kentucky Straight Bourbon Whiskey");

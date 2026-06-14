@@ -16,7 +16,7 @@ import pytest
 from app.readers import get_reader, registered_names
 from app.readers.preprocess import load_image
 
-CLEAN = Path(__file__).resolve().parents[1] / "corpus" / "images" / "old_tom_clean.png"
+CLEAN = Path(__file__).resolve().parent / "fixtures" / "labels" / "old_tom_clean.png"
 
 # Engines that are always expected to be present (declared in the `readers` extra).
 CORE_ENGINES = {"rapidocr"}

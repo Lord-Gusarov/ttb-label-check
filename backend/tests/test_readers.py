@@ -8,7 +8,7 @@ from app.readers.base import Reader
 from app.readers.composite import FallbackReader
 from app.readers.types import ReadResult, WordBox
 
-CLEAN = Path(__file__).resolve().parents[1] / "corpus" / "images" / "old_tom_clean.png"
+CLEAN = Path(__file__).resolve().parent / "fixtures" / "labels" / "old_tom_clean.png"
 
 
 def test_all_adapters_registered():

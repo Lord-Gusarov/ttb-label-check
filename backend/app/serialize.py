@@ -6,6 +6,9 @@ import re
 from app.pipeline import VerificationResult
 from app.readers.types import ReadResult
 from app.rules.result import FieldResult
+from app.rules.spec.government_warning import CANONICAL_TOKENS
+
+_CANON_TOKEN_SET = set(CANONICAL_TOKENS)
 
 # match = label must equal a declared value; present = mandatory element, no declared value.
 FIELD_KIND: dict[str, str] = {
@@ -18,24 +21,45 @@ FIELD_KIND: dict[str, str] = {
     "warning_bold": "present",
 }
 
-_WARNING_TOKENS = {"government", "warning"}
+def _despace(text: str | None) -> str:
+    """Lowercase, alphanumeric-only — collapses OCR space differences."""
+    return re.sub(r"[^a-z0-9]", "", (text or "").lower())
 
 
-def _tokens(text: str | None) -> set[str]:
-    return set(re.findall(r"[a-z0-9]+", (text or "").lower()))
+def _tokens(text: str | None) -> list[str]:
+    return re.findall(r"[a-z0-9]+", (text or "").lower())
+
+
+def _is_warning_line(text: str) -> bool:
+    """A reader line belongs to the warning if most of its words are canonical-warning
+    vocabulary. Robust to OCR noise, and (unlike matching only "GOVERNMENT WARNING")
+    it tags EVERY line of the multi-line warning, not just the prefix."""
+    toks = _tokens(text)
+    if len(toks) < 3:
+        return False
+    return sum(t in _CANON_TOKEN_SET for t in toks) / len(toks) >= 0.6
 
 
 def _locate_boxes(field: FieldResult, read: ReadResult) -> list[list[int]]:
-    """Best-effort: boxes of reader words that make up this field's value."""
+    """Best-effort: boxes of reader words that make up this field's value/region.
+
+    Warning checks highlight the WHOLE warning (every recognized line). Other fields match
+    on a de-spaced *substring* basis rather than exact token overlap, because OCR joins or
+    splits the same value unpredictably (vertical/stylized text especially): the declared
+    "750 mL" may come back as one word "750mL" or as "750" + "mL". A word's box belongs to
+    the field if its de-spaced text sits inside the target value, or contains it — so
+    recognition and highlighting can't silently disagree.
+    """
     if field.field.startswith("warning"):
-        wanted = _WARNING_TOKENS
-    else:
-        wanted = _tokens(field.found) or _tokens(field.expected)
-    if not wanted:
+        return [[int(c) for c in w.bbox] for w in read.words if _is_warning_line(w.text)]
+
+    target = _despace(field.found or field.expected)
+    if not target:
         return []
     boxes = []
     for w in read.words:
-        if _tokens(w.text) & wanted:
+        wt = _despace(w.text)
+        if len(wt) >= 2 and (wt in target or target in wt):
             boxes.append([int(c) for c in w.bbox])
     return boxes
 
@@ -59,6 +83,7 @@ def serialize_verification(vr: VerificationResult) -> dict:
         "overall": vr.result.overall.value,
         "engine": read.engine,
         "elapsed_ms": round(read.elapsed_ms, 1),
+        "warning_tier": vr.warning_tier,  # 0 plain, 1 rotation re-read, 2 model-assisted
         "text": read.text,  # full text the reader extracted, for the agent to eyeball
         "fields": [serialize_field(f, read) for f in vr.result.fields],
         "words": [{"text": w.text, "bbox": [int(c) for c in w.bbox]} for w in read.words],

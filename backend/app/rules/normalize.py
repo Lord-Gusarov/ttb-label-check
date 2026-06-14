@@ -25,8 +25,16 @@ def normalize(text: str) -> str:
     return _WS.sub(" ", text).strip()
 
 
+def _strip_diacritics(text: str) -> str:
+    """é -> e, ü -> u: NFKD-decompose and drop the combining marks. OCR reads the plain
+    glyph (and applicants type both forms), so accented and plain must fold together."""
+    return "".join(
+        c for c in unicodedata.normalize("NFKD", text) if not unicodedata.combining(c)
+    )
+
+
 def fold(text: str) -> str:
-    text = normalize(text).lower()
+    text = _strip_diacritics(normalize(text)).lower()
     text = _APOS.sub("", text)  # STONE'S -> STONES (no space)
     text = _NON_ALNUM.sub(" ", text)  # other punctuation -> space
     return _WS.sub(" ", text).strip()
@@ -34,4 +42,4 @@ def fold(text: str) -> str:
 
 def despace(text: str) -> str:
     """Lowercase, keep only [a-z0-9] — robust to spacing/granularity (750 mL ~ 750mL)."""
-    return _NON_ALNUM.sub("", text.lower())
+    return _NON_ALNUM.sub("", _strip_diacritics(text).lower())

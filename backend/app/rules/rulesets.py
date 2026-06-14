@@ -13,7 +13,13 @@ from dataclasses import dataclass
 from dataclasses import field as dc_field
 from typing import Optional
 
-from app.rules.comparators import match_abv, match_net_contents, match_text
+from app.rules.comparators import (
+    match_abv,
+    match_abv_wine,
+    match_net_contents,
+    match_text,
+    require_phrase,
+)
 from app.rules.result import Verdict
 from app.rules.spec.tolerances import ABV_TOLERANCE_PCT
 
@@ -34,7 +40,7 @@ DISTILLED_SPIRITS: list[FieldPolicy] = [
         "brand_name",
         "Brand name",
         match_text,
-        {"fuzzy_threshold": 0.85, "absent_verdict": Verdict.FAIL},
+        {"fuzzy_threshold": 0.85, "absent_verdict": Verdict.NEEDS_REVIEW},
     ),
     FieldPolicy(
         "class_type",
@@ -56,8 +62,59 @@ DISTILLED_SPIRITS: list[FieldPolicy] = [
     ),
 ]
 
+# Wine (27 CFR part 4): banded ABV tolerance with the hard 14% class line, plus the
+# sulfite declaration (presence-level — exemption under 10ppm is a human call).
+WINE: list[FieldPolicy] = [
+    FieldPolicy(
+        "brand_name",
+        "Brand name",
+        match_text,
+        {"fuzzy_threshold": 0.85, "absent_verdict": Verdict.NEEDS_REVIEW},
+    ),
+    FieldPolicy(
+        "class_type",
+        "Class/type designation",
+        match_text,
+        {"fuzzy_threshold": 0.80, "absent_verdict": Verdict.WARN},
+    ),
+    FieldPolicy("alcohol_content", "Alcohol content", match_abv_wine, {}),
+    FieldPolicy("net_contents", "Net contents", match_net_contents, {}),
+    FieldPolicy(
+        "sulfite_declaration",
+        "Sulfite declaration",
+        require_phrase,
+        {"phrase": "CONTAINS SULFITES", "absent_verdict": Verdict.WARN},
+    ),
+]
+
+# Malt beverages (27 CFR part 7): structural — same mandatory fields as spirits with
+# the malt ABV tolerance; the low/non-alcohol floors stay a human call at this depth.
+MALT_BEVERAGE: list[FieldPolicy] = [
+    FieldPolicy(
+        "brand_name",
+        "Brand name",
+        match_text,
+        {"fuzzy_threshold": 0.85, "absent_verdict": Verdict.NEEDS_REVIEW},
+    ),
+    FieldPolicy(
+        "class_type",
+        "Class/type designation",
+        match_text,
+        {"fuzzy_threshold": 0.80, "absent_verdict": Verdict.WARN},
+    ),
+    FieldPolicy(
+        "alcohol_content",
+        "Alcohol content",
+        match_abv,
+        {"tolerance": ABV_TOLERANCE_PCT["malt_beverage"]},
+    ),
+    FieldPolicy("net_contents", "Net contents", match_net_contents, {}),
+]
+
 RULESETS: dict[str, list[FieldPolicy]] = {
     "distilled_spirits": DISTILLED_SPIRITS,
+    "wine": WINE,
+    "malt_beverage": MALT_BEVERAGE,
 }
 
 

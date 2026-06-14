@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.store import store
 
-CLEAN = Path(__file__).resolve().parents[1] / "corpus" / "images" / "old_tom_clean.png"
+CLEAN = Path(__file__).resolve().parent / "fixtures" / "labels" / "old_tom_clean.png"
 client = TestClient(app)
 
 
@@ -108,7 +108,7 @@ def test_unsupported_commodity_rejected():
     from app.store import store as _s
     _s.clear()
     from pathlib import Path
-    clean = Path(__file__).resolve().parents[1] / "corpus" / "images" / "old_tom_clean.png"
+    clean = Path(__file__).resolve().parent / "fixtures" / "labels" / "old_tom_clean.png"
     if not clean.exists():
         import pytest
         pytest.skip("seed corpus not generated")
