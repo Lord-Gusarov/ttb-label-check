@@ -14,7 +14,7 @@ The cascade's target is the government warning, so resolution is reported on war
 resolved at Tier 1 = warning PASS with no adopted model read (warning_tier == 1); escalated
 to Tier 2 = a model read was adopted (warning_tier == 2).
 
-Usage:  python corpus/tools/eval_combined.py [N]   # N = optional cap for a smoke test
+Usage:  python eval/eval_combined.py [N]   # N = optional cap for a smoke test
 """
 
 from __future__ import annotations

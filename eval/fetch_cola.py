@@ -9,8 +9,8 @@ typography, and the *declared* application fields (brand, fanciful, class/type, 
 contents) right there on the printable form. Public government records; eval-only use.
 
 This is a one-off acquisition tool, not product code. It writes:
-  corpus/real/images/<ttbid>__<n>_<imgtype>.<ext>   the label images
-  corpus/real/manifest.jsonl                         one record per COLA (fields + images)
+  eval/data/real/images/<ttbid>__<n>_<imgtype>.<ext>   the label images
+  eval/data/real/manifest.jsonl                         one record per COLA (fields + images)
 
 Pipeline per COLA (proven by hand first):
   search (keyword + date range)  -> ttbids

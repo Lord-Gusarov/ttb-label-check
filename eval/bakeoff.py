@@ -125,7 +125,7 @@ def _render_markdown(report: dict) -> str:
         "engines remain one-line swaps; a local VLM enters as a low-confidence fallback.",
         "",
         "> Corpus is synthetic but models real-world label variation; step 8 can add "
-        "real / AI-generated photographed labels by dropping them in `corpus/`.",
+        "real / AI-generated photographed labels by dropping them in `eval/data/`.",
         "",
         "## Summary",
         "",
@@ -164,7 +164,7 @@ def _render_markdown(report: dict) -> str:
         "can't be trusted as a primary), while the angle-robust engine stays accurate. "
         "This is why the reader is swappable and why robustness, not raw speed, wins the "
         "hot path. Remaining limitation: still synthetic, not photographed bottles — "
-        "step 8 can add real labels to `corpus/`._",
+        "step 8 can add real labels to `eval/data/`._",
     ]
 
     lines += ["", "## Per-variant field accuracy", "",

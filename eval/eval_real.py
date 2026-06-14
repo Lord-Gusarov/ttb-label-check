@@ -1,6 +1,6 @@
 """Sweep the real COLA corpus and measure what the LOCAL tiers actually need.
 
-For every image in corpus/real/: full-image OCR, then the Tier-0 anchored warning
+For every image in eval/data/real/: full-image OCR, then the Tier-0 anchored warning
 re-read; when the warning is still imperfect, try each rotation angle (±2°, ±5°, ±10°)
 separately and record whether ANY angle improves token recovery. This answers, with
 real labels instead of our synthetic art:

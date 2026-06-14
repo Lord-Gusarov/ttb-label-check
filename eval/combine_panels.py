@@ -10,7 +10,7 @@ Panels are stacked vertically in manifest order, each padded (not scaled) to the
 widest panel on a white background, with a thin separator between them — preserving every
 panel's native resolution for OCR.
 
-Output: corpus/real/combined/<ttbid>.png plus corpus/real/combined/manifest.jsonl, whose
+Output: eval/data/real/combined/<ttbid>.png plus eval/data/real/combined/manifest.jsonl, whose
 records mirror the source manifest but point at the single combined file — so eval_real.py
 runs over it unchanged.
 """
