@@ -22,7 +22,9 @@ import numpy as np
 from app.readers.preprocess import to_grayscale
 from app.readers.types import WordBox
 
-_BOLD_RATIO = 1.20      # prefix stroke width must exceed body by this factor to read as bold
+_BOLD_RATIO = 1.15      # prefix stroke width must exceed body by this factor to read as bold
+                        # (1.15, not 1.20: genuinely-bold clean prefixes measure ~1.16x; flagging
+                        #  those "unclear" forced needless review when the VLM tiebreak is off)
 _NOT_BOLD_RATIO = 1.00  # at/below this (with a confident measurement) reads as NOT bold
 _MIN_GLYPH_H = 14       # below this prefix height, upscale + CLAHE before measuring
 _BODY_BAND = 8          # search body words within this many prefix-heights below the prefix
