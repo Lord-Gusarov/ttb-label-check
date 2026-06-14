@@ -56,25 +56,32 @@ def _read_key() -> str | None:
 
 
 def _chat_json(image: np.ndarray, model: str, prompt: str) -> dict | None:
-    """One declared-blind image+text chat call returning parsed JSON, or None on any failure."""
-    from openai import OpenAI  # lazy: no hard dependency unless escalation is enabled
+    """One declared-blind image+text chat call returning parsed JSON, or None on any failure
+    (missing key, encode/network/API error, empty or unparseable response). Never raises."""
+    try:
+        from openai import OpenAI  # lazy
 
-    key = _read_key()
-    if not key:
+        key = _read_key()
+        if not key:
+            return None
+        ok, buf = cv2.imencode(".png", image)
+        if not ok:
+            return None
+        b64 = base64.b64encode(buf.tobytes()).decode()
+        client = OpenAI(api_key=key, timeout=10)
+        r = client.chat.completions.create(
+            model=model, temperature=0, response_format={"type": "json_object"},
+            messages=[{"role": "user", "content": [
+                {"type": "text", "text": prompt},
+                {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64}"}},
+            ]}],
+        )
+        if not r.choices:
+            return None
+        return json.loads(r.choices[0].message.content or "{}")
+    except Exception:  # noqa: BLE001 — fail-safe: any failure degrades to None, never crashes
+        logger.warning("chat_json call failed; returning None", exc_info=True)
         return None
-    ok, buf = cv2.imencode(".png", image)
-    if not ok:
-        return None
-    b64 = base64.b64encode(buf.tobytes()).decode()
-    client = OpenAI(api_key=key, timeout=10)
-    r = client.chat.completions.create(
-        model=model, temperature=0, response_format={"type": "json_object"},
-        messages=[{"role": "user", "content": [
-            {"type": "text", "text": prompt},
-            {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64}"}},
-        ]}],
-    )
-    return json.loads(r.choices[0].message.content or "{}")
 
 
 _BOLD_PROMPT = (
@@ -93,6 +100,7 @@ def judge_warning_bold(crop: np.ndarray) -> str | None:
     try:
         provider, _, model = spec.partition(":")
         if provider != "openai":
+            logger.warning("unknown escalation provider %r — skipping bold judge", provider)
             return None
         data = _chat_json(crop, model or "gpt-5.4-mini", _BOLD_PROMPT)
         if not data:
