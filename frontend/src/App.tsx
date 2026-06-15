@@ -72,10 +72,10 @@ function TopBar() {
       ? "Review queue / Application"
       : "Review queue";
   return (
-    <header className="sticky top-0 z-10 border-b border-line bg-surface/85 backdrop-blur">
+    <header className="sticky top-0 z-10 border-b-2 border-fail bg-brand shadow-sm">
       <div className="mx-auto flex max-w-6xl items-center gap-3 px-6 py-3 text-sm md:px-10">
-        <span className="font-serif font-semibold text-ink md:hidden">Label Check</span>
-        <span className="text-muted">{crumb}</span>
+        <span className="font-serif font-semibold text-white md:hidden">Label Check</span>
+        <span className="font-medium text-white/85">{crumb}</span>
       </div>
     </header>
   );
@@ -83,7 +83,7 @@ function TopBar() {
 
 function Seal() {
   return (
-    <div className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-brand text-brand">
+    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-brand text-white shadow-sm ring-1 ring-fail/40">
       <span className="font-serif text-sm font-bold">LC</span>
     </div>
   );

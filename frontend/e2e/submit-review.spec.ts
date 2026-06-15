@@ -142,6 +142,8 @@ test("a clean label lands in 'Recommended to approve' and fast-clears in one cli
   await page.getByPlaceholder("Kentucky Straight Bourbon Whiskey").fill("Kentucky Straight Bourbon Whiskey");
   await page.getByPlaceholder("45% Alc./Vol. (90 Proof)").fill("45% Alc./Vol. (90 Proof)");
   await page.getByPlaceholder("750 mL").fill("750 mL");
+  await page.getByPlaceholder("Bottled by ACME Distillery, City, ST")
+    .fill("Old Tom Distillery, Louisville, KY");
   await page.locator('input[type="file"]').setInputFiles(CLEAN);
   await page.getByRole("button", { name: "Check label" }).click();
   await expect(

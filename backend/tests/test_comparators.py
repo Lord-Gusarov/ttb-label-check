@@ -3,7 +3,13 @@ decision rejects; the automated checks recommend/flag."""
 
 from __future__ import annotations
 
-from app.rules.comparators import match_abv, match_net_contents, match_text
+from app.rules.comparators import (
+    match_abv,
+    match_country_of_origin,
+    match_net_contents,
+    match_responsible_party,
+    match_text,
+)
 from app.rules.result import Verdict
 
 
@@ -94,3 +100,53 @@ def test_abv_all_three_word_orders_pass():
     ):
         v, _, _ = match_abv("40% Alc./Vol.", label)
         assert v is Verdict.PASS, label
+
+
+# --- Responsible party (name & address of bottler/producer, 27 CFR) ------------------
+# Presence-level: an anchor ("bottled by"/"produced by"/…) AND the declared name on the label.
+def test_responsible_party_anchor_and_name_passes():
+    v, _, _ = match_responsible_party(
+        "Old Tom Distillery, Louisville, KY",
+        "GOVERNMENT WARNING ... BOTTLED BY OLD TOM DISTILLERY, LOUISVILLE, KY 750 ML",
+    )
+    assert v is Verdict.PASS
+
+
+def test_responsible_party_absent_in_application_is_needs_review():
+    v, _, detail = match_responsible_party("", "BOTTLED BY OLD TOM DISTILLERY")
+    assert v is Verdict.NEEDS_REVIEW
+    assert "no responsible party" in detail.lower()
+
+
+def test_responsible_party_name_without_anchor_is_needs_review():
+    # Name appears but there's no "bottled/produced/imported by" statement.
+    v, _, _ = match_responsible_party("Old Tom Distillery, KY", "OLD TOM DISTILLERY 750 ML")
+    assert v is Verdict.NEEDS_REVIEW
+
+
+def test_responsible_party_anchor_without_name_is_needs_review():
+    v, _, _ = match_responsible_party("Old Tom Distillery", "BOTTLED BY SOMEONE ELSE, NY")
+    assert v is Verdict.NEEDS_REVIEW
+
+
+# --- Country of origin (imports; 27 CFR) ---------------------------------------------
+def test_country_of_origin_declared_country_present_passes():
+    v, _, _ = match_country_of_origin("France", "RED WINE • PRODUCT OF FRANCE • 750 ML")
+    assert v is Verdict.PASS
+
+
+def test_country_of_origin_absent_on_label_is_needs_review():
+    v, _, _ = match_country_of_origin("France", "RED WINE 750 ML 13% ALC/VOL")
+    assert v is Verdict.NEEDS_REVIEW
+
+
+def test_country_of_origin_anchor_but_wrong_country_is_needs_review():
+    v, _, detail = match_country_of_origin("France", "IMPORTED FROM ITALY")
+    assert v is Verdict.NEEDS_REVIEW
+    assert "not matched" in detail.lower() or "review" in detail.lower()
+
+
+def test_country_of_origin_absent_in_application_is_needs_review():
+    v, _, detail = match_country_of_origin("", "PRODUCT OF FRANCE")
+    assert v is Verdict.NEEDS_REVIEW
+    assert "no country" in detail.lower()

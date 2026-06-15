@@ -19,6 +19,7 @@ export function SubmitPage() {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [formKey, setFormKey] = useState(0); // bump to remount the form subtree (full reset)
+  const [source, setSource] = useState("domestic"); // gates the country-of-origin field
 
   // Any edit after a check invalidates it — you can never submit data that wasn't checked.
   function invalidate() {
@@ -71,6 +72,7 @@ export function SubmitPage() {
 
   function onAgain() {
     setFormKey((k) => k + 1); // remount the form -> clears inputs AND the DropZone preview state
+    setSource("domestic");
     invalidate();
   }
 
@@ -90,11 +92,29 @@ export function SubmitPage() {
               <option value="malt_beverage">Malt beverage</option>
             </select>
           </Field>
+          <Field label="Source">
+            <select name="source" value={source} onChange={(e) => setSource(e.currentTarget.value)} className={inputCls}>
+              <option value="domestic">Domestic</option>
+              <option value="imported">Imported</option>
+            </select>
+          </Field>
+          {source === "imported" && (
+            <Field label="Country of origin">
+              <input name="country_of_origin" placeholder="France" className={inputCls} />
+            </Field>
+          )}
           {FIELDS.map((f) => (
             <Field key={f.name} label={f.label}>
               <input name={f.name} required placeholder={f.placeholder} className={inputCls} />
             </Field>
           ))}
+          <Field label="Name & address of bottler/producer">
+            <input
+              name="responsible_party"
+              placeholder="Bottled by ACME Distillery, City, ST"
+              className={inputCls}
+            />
+          </Field>
           <button
             disabled={busy}
             className="w-full rounded-md bg-brand px-5 py-3 text-base font-semibold text-white transition hover:brightness-110 disabled:opacity-50"

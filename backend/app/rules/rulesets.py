@@ -16,7 +16,9 @@ from typing import Optional
 from app.rules.comparators import (
     match_abv,
     match_abv_wine,
+    match_country_of_origin,
     match_net_contents,
+    match_responsible_party,
     match_text,
     require_phrase,
 )
@@ -33,6 +35,25 @@ class FieldPolicy:
     label: str  # human-facing label
     comparator: Comparator
     params: dict = dc_field(default_factory=dict)
+    # Optional predicate over the application: when present and False, the field is skipped
+    # entirely (no result). Used for conditional fields like country-of-origin (imports only).
+    applies_when: Optional[Callable[[dict], bool]] = None
+
+
+def _is_imported(application: dict) -> bool:
+    return (application.get("source") or "").strip().lower() == "imported"
+
+
+# Responsible party (name & address of bottler/producer) — required on all commodities.
+# Country of origin — required only for imports (gated by applies_when).
+def _responsible_party_policy() -> "FieldPolicy":
+    return FieldPolicy("responsible_party", "Name & address of bottler/producer", match_responsible_party, {})
+
+
+def _country_of_origin_policy() -> "FieldPolicy":
+    return FieldPolicy(
+        "country_of_origin", "Country of origin", match_country_of_origin, {}, applies_when=_is_imported
+    )
 
 
 DISTILLED_SPIRITS: list[FieldPolicy] = [
@@ -60,6 +81,8 @@ DISTILLED_SPIRITS: list[FieldPolicy] = [
         match_net_contents,
         {},
     ),
+    _responsible_party_policy(),
+    _country_of_origin_policy(),
 ]
 
 # Wine (27 CFR part 4): banded ABV tolerance with the hard 14% class line, plus the
@@ -85,6 +108,8 @@ WINE: list[FieldPolicy] = [
         require_phrase,
         {"phrase": "CONTAINS SULFITES", "absent_verdict": Verdict.WARN},
     ),
+    _responsible_party_policy(),
+    _country_of_origin_policy(),
 ]
 
 # Malt beverages (27 CFR part 7): structural — same mandatory fields as spirits with
@@ -109,6 +134,8 @@ MALT_BEVERAGE: list[FieldPolicy] = [
         {"tolerance": ABV_TOLERANCE_PCT["malt_beverage"]},
     ),
     FieldPolicy("net_contents", "Net contents", match_net_contents, {}),
+    _responsible_party_policy(),
+    _country_of_origin_policy(),
 ]
 
 RULESETS: dict[str, list[FieldPolicy]] = {

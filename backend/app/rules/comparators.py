@@ -217,3 +217,58 @@ def require_phrase(
     if despace(phrase) in despace(label_text):
         return Verdict.PASS, phrase, "found on label"
     return absent_verdict, None, f"'{phrase}' not found on label — confirm exemption"
+
+
+# Standard "responsible party" lead-ins (27 CFR 5.66/4.35/7.65). Fold-normalized: lowercase,
+# punctuation→space. A compliant label carries one of these + the firm's name & place.
+_RESP_ANCHORS = (
+    "bottled by", "produced by", "produced and bottled by", "distilled by", "imported by",
+    "manufactured by", "packed by", "brewed by", "vinted by", "blended by", "prepared by",
+)
+# Country-of-origin lead-ins for imports (27 CFR 5.69 etc.).
+_ORIGIN_ANCHORS = ("product of", "produce of", "produced in", "made in", "imported from", "vinted in")
+
+
+def match_responsible_party(
+    expected: str | None,
+    label_text: str,
+    **_: object,
+) -> tuple[Verdict, str | None, str]:
+    """Presence of the bottler/producer name & address: a responsible-party anchor
+    ('bottled by'/'produced by'/…) AND the declared firm name on the label. Presence-level,
+    not an adequacy judge — anything short of both is NEEDS_REVIEW for the agent."""
+    if not expected:
+        return Verdict.NEEDS_REVIEW, None, "no responsible party in application"
+    lab_fold = fold(label_text)
+    anchor = next((a for a in _RESP_ANCHORS if a in lab_fold), None)
+    name = expected.split(",")[0].strip()  # the firm name precedes the address
+    name_found = bool(name) and (despace(name) in despace(label_text) or fold(name) in lab_fold)
+    if anchor and name_found:
+        return Verdict.PASS, name, f"responsible party present ('{anchor}') and name matches"
+    if name_found:
+        return Verdict.NEEDS_REVIEW, name, "name present but no 'bottled/produced/imported by' statement — review"
+    if anchor:
+        return Verdict.NEEDS_REVIEW, anchor, f"'{anchor}' present but declared name not found — review"
+    return Verdict.NEEDS_REVIEW, None, "responsible-party statement not found on label — review"
+
+
+def match_country_of_origin(
+    expected: str | None,
+    label_text: str,
+    **_: object,
+) -> tuple[Verdict, str | None, str]:
+    """Presence of the country of origin (imports). PASS when the declared country appears on the
+    label; if only an origin lead-in is present without the declared country, flag for review."""
+    if not expected:
+        return Verdict.NEEDS_REVIEW, None, "no country of origin in application"
+    country = expected.strip()
+    if despace(country) in despace(label_text):
+        return Verdict.PASS, country, f"country of origin '{country}' found on label"
+    anchor = next((a for a in _ORIGIN_ANCHORS if a in fold(label_text)), None)
+    if anchor:
+        return (
+            Verdict.NEEDS_REVIEW,
+            anchor,
+            f"origin statement ('{anchor}') present but '{country}' not matched — review",
+        )
+    return Verdict.NEEDS_REVIEW, None, f"country of origin '{country}' not found on label — review"

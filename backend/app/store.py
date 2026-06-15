@@ -26,6 +26,9 @@ class Application:
     status: str = "submitted"          # submitted | approved | rejected | needs_correction
     decision_note: str | None = None
     verification: dict | None = None   # cached serialized verification result
+    source: str = ""                   # "" | domestic | imported (gates country-of-origin)
+    country_of_origin: str = ""        # declared country (imports)
+    responsible_party: str = ""        # declared bottler/producer name & address
 
     @classmethod
     def new(cls, **kw) -> "Application":
@@ -58,7 +61,7 @@ class SQLiteApplicationStore:
 
     _COLS = ("id", "commodity_type", "brand_name", "class_type", "alcohol_content",
              "net_contents", "image", "created_at", "status", "decision_note",
-             "verification")
+             "verification", "source", "country_of_origin", "responsible_party")
 
     def __init__(self, path: str | Path) -> None:
         self._path = str(path)
@@ -76,7 +79,10 @@ class SQLiteApplicationStore:
                        created_at REAL NOT NULL,
                        status TEXT NOT NULL,
                        decision_note TEXT,
-                       verification TEXT
+                       verification TEXT,
+                       source TEXT NOT NULL DEFAULT '',
+                       country_of_origin TEXT NOT NULL DEFAULT '',
+                       responsible_party TEXT NOT NULL DEFAULT ''
                    )"""
             )
 
@@ -88,7 +94,8 @@ class SQLiteApplicationStore:
     def _row(self, a: Application) -> tuple:
         return (a.id, a.commodity_type, a.brand_name, a.class_type, a.alcohol_content,
                 a.net_contents, a.image, a.created_at, a.status, a.decision_note,
-                json.dumps(a.verification) if a.verification is not None else None)
+                json.dumps(a.verification) if a.verification is not None else None,
+                a.source, a.country_of_origin, a.responsible_party)
 
     @staticmethod
     def _app(row: tuple) -> Application:
@@ -97,6 +104,7 @@ class SQLiteApplicationStore:
             alcohol_content=row[4], net_contents=row[5], image=row[6], created_at=row[7],
             status=row[8], decision_note=row[9],
             verification=json.loads(row[10]) if row[10] is not None else None,
+            source=row[11], country_of_origin=row[12], responsible_party=row[13],
         )
 
     def add(self, app: Application) -> None:
