@@ -21,7 +21,7 @@ export function VerificationView({
 
   return (
     <div className="grid gap-6 lg:grid-cols-2">
-      <div className="space-y-2">
+      <div className="space-y-2 lg:sticky lg:top-20 lg:self-start">
         <LabelImage
           src={imageSrc}
           highlight={active ? { boxes: active.boxes, verdict: active.verdict } : undefined}
@@ -29,45 +29,45 @@ export function VerificationView({
         <p className="text-xs text-muted">Hover a check to highlight its region on the label.</p>
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-2.5">
         {v.fields.map((f) => (
           <div
             key={f.field}
             onMouseEnter={() => setHover(f.field)}
             onMouseLeave={() => setHover(null)}
-            className="cursor-pointer rounded-lg border border-line bg-surface p-3 transition hover:border-brand/40 hover:shadow-sm"
+            className="cursor-pointer rounded-xl border border-line bg-surface p-3.5 shadow-sm transition hover:border-brand/40 hover:shadow-card"
           >
             <div className="flex items-center justify-between gap-2">
-              <span className="font-medium text-ink">{f.label}</span>
+              <span className="font-semibold text-ink">{f.label}</span>
               <VerdictPill verdict={f.verdict} />
             </div>
 
             {f.kind === "match" ? (
-              <dl className="mt-2 grid grid-cols-[5rem_1fr] gap-x-3 gap-y-1 text-sm">
+              <dl className="mt-2.5 grid grid-cols-[5rem_1fr] gap-x-3 gap-y-1.5 text-sm">
                 <dt className="text-muted">Declared</dt>
                 <dd className="text-ink">{f.expected || "—"}</dd>
                 <dt className="text-muted">Found</dt>
                 <dd>
-                  <code className="rounded bg-paper px-1.5 py-0.5 text-xs text-ink">
+                  <code className="rounded bg-paper px-1.5 py-0.5 font-mono text-xs text-ink ring-1 ring-inset ring-line">
                     {f.found || "— not detected on label"}
                   </code>
                 </dd>
               </dl>
             ) : (
               f.found && (
-                <p className="mt-2 text-sm">
+                <p className="mt-2.5 text-sm">
                   <span className="text-muted">Found </span>
-                  <code className="rounded bg-paper px-1.5 py-0.5 text-xs text-ink">{f.found}</code>
+                  <code className="rounded bg-paper px-1.5 py-0.5 font-mono text-xs text-ink ring-1 ring-inset ring-line">{f.found}</code>
                 </p>
               )
             )}
 
-            <p className="mt-1.5 text-xs text-muted">{f.detail}</p>
+            <p className="mt-2 text-xs leading-relaxed text-muted">{f.detail}</p>
           </div>
         ))}
 
-        <details className="rounded-lg border border-line bg-surface p-3">
-          <summary className="cursor-pointer text-sm font-medium text-ink">
+        <details className="rounded-xl border border-line bg-surface p-3.5">
+          <summary className="cursor-pointer text-sm font-semibold text-ink">
             Full reader output (raw OCR)
           </summary>
           <p className="mt-2 whitespace-pre-wrap break-words text-sm text-muted">{v.text || "—"}</p>
@@ -75,7 +75,9 @@ export function VerificationView({
         </details>
 
         {v.warning_tier === 2 ? (
-          <p className="text-xs text-muted">✦ Read with model assistance (Tier 2).</p>
+          <p className="inline-flex items-center gap-1.5 rounded-full bg-brand-soft px-2.5 py-1 text-xs font-medium text-brand">
+            <span aria-hidden>✦</span> Read with model assistance (Tier 2)
+          </p>
         ) : null}
 
         {actions}
@@ -96,8 +98,8 @@ function LabelImage({ src, highlight }: { src: string; highlight?: { boxes: Box[
     else img.addEventListener("load", read, { once: true });
   }, []);
   return (
-    <div className="overflow-hidden rounded-xl border border-line bg-surface shadow-sm">
-      <div className="relative">
+    <div className="overflow-hidden rounded-2xl border border-line bg-surface p-3 shadow-card">
+      <div className="relative overflow-hidden rounded-lg">
         <img ref={imgRef} src={src} alt="submitted label" className="block w-full" />
         {dim && highlight && highlight.boxes.length > 0 && (
           <svg

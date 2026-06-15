@@ -2,7 +2,7 @@ import { type ReactNode, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { decide, listApplications } from "../api";
 import type { AppSummary } from "../types";
-import { PageHeading, StatusBadge, VerdictPill } from "../ui";
+import { Card, PageHeading, StatusBadge, VerdictPill, btnOutlinePass, btnPass, btnPrimary } from "../ui";
 
 const COMMODITY: Record<string, string> = {
   distilled_spirits: "Distilled spirits",
@@ -39,72 +39,75 @@ export function QueuePage() {
 
   return (
     <div className="rise space-y-8">
-      <div className="flex flex-wrap items-end justify-between gap-3">
+      <div className="flex flex-wrap items-end justify-between gap-4">
         <PageHeading title="Review queue" subtitle="The tool recommends; you decide. Clear the easy ones fast, focus on the flagged." />
-        <Link to="/submit" className="rounded-md bg-brand px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110">
-          + New application
-        </Link>
+        <Link to="/submit" className={`${btnPrimary} px-4 py-2.5 text-sm`}>+ New application</Link>
       </div>
 
       {submitted.length === 0 && decided.length === 0 && <EmptyState />}
 
-      {attention.length > 0 && (
-        <Section
-          title={`Needs your attention (${attention.length})`}
-          subtitle="Automated checks flagged something — open to review the evidence and decide."
-        >
-          <Table apps={attention} onOpen={(id) => navigate(`/queue/${id}`)} />
-        </Section>
-      )}
+      <div className="stagger space-y-8">
+        {attention.length > 0 && (
+          <Section
+            tone="flag"
+            title={`Needs your attention (${attention.length})`}
+            subtitle="Automated checks flagged something — open to review the evidence and decide."
+          >
+            <Table apps={attention} onOpen={(id) => navigate(`/queue/${id}`)} />
+          </Section>
+        )}
 
-      {clear.length > 0 && (
-        <Section
-          title={`Recommended to approve (${clear.length})`}
-          subtitle="Every automated check passed. Glance and clear — or approve them all."
-          action={
-            <button
-              disabled={busy}
-              onClick={() => approve(clear.map((a) => a.id))}
-              className="rounded-md bg-pass px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-50"
-            >
-              {busy ? "Approving…" : `Approve all ${clear.length}`}
-            </button>
-          }
-        >
-          <Table
-            apps={clear}
-            onOpen={(id) => navigate(`/queue/${id}`)}
-            rowAction={(a) => (
-              <button
-                disabled={busy}
-                onClick={(e) => { e.stopPropagation(); approve([a.id]); }}
-                className="rounded-md border border-pass px-3 py-1 text-xs font-semibold text-pass transition hover:bg-pass-soft disabled:opacity-50"
-              >
-                Approve
+        {clear.length > 0 && (
+          <Section
+            tone="pass"
+            title={`Recommended to approve (${clear.length})`}
+            subtitle="Every automated check passed. Glance and clear — or approve them all."
+            action={
+              <button disabled={busy} onClick={() => approve(clear.map((a) => a.id))} className={`${btnPass} px-4 py-2.5 text-sm`}>
+                {busy ? "Approving…" : `Approve all ${clear.length}`}
               </button>
-            )}
-          />
-        </Section>
-      )}
+            }
+          >
+            <Table
+              apps={clear}
+              onOpen={(id) => navigate(`/queue/${id}`)}
+              rowAction={(a) => (
+                <button
+                  disabled={busy}
+                  onClick={(e) => { e.stopPropagation(); approve([a.id]); }}
+                  className={`${btnOutlinePass} px-3 py-1.5 text-xs`}
+                >
+                  Approve
+                </button>
+              )}
+            />
+          </Section>
+        )}
 
-      {decided.length > 0 && (
-        <Section title="Decided" subtitle="Already approved or rejected.">
-          <Table apps={decided} onOpen={(id) => navigate(`/queue/${id}`)} />
-        </Section>
-      )}
+        {decided.length > 0 && (
+          <Section tone="muted" title="Decided" subtitle="Already approved or rejected.">
+            <Table apps={decided} onOpen={(id) => navigate(`/queue/${id}`)} />
+          </Section>
+        )}
+      </div>
     </div>
   );
 }
 
-function Section({ title, subtitle, action, children }: {
-  title: string; subtitle: string; action?: ReactNode; children: ReactNode;
+const TONE: Record<string, string> = { flag: "bg-flag", pass: "bg-pass", muted: "bg-line-strong" };
+
+function Section({ title, subtitle, action, tone = "muted", children }: {
+  title: string; subtitle: string; action?: ReactNode; tone?: string; children: ReactNode;
 }) {
   return (
     <section>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h2 className="font-serif text-lg font-semibold text-ink">{title}</h2>
-          <p className="text-sm text-muted">{subtitle}</p>
+        <div className="flex items-start gap-2.5">
+          <span aria-hidden className={`mt-1 h-5 w-1.5 shrink-0 rounded-full ${TONE[tone]}`} />
+          <div>
+            <h2 className="text-base font-bold tracking-tight text-ink">{title}</h2>
+            <p className="text-sm text-muted">{subtitle}</p>
+          </div>
         </div>
         {action}
       </div>
@@ -119,9 +122,9 @@ function Table({ apps, onOpen, rowAction }: {
   rowAction?: (a: AppSummary) => ReactNode;
 }) {
   return (
-    <div className="overflow-hidden rounded-xl border border-line bg-surface shadow-sm">
+    <Card className="overflow-hidden">
       <table className="w-full text-left text-sm">
-        <thead className="border-b border-line text-xs uppercase tracking-wide text-muted">
+        <thead className="border-b border-line bg-surface-2 text-xs uppercase tracking-wide text-muted">
           <tr>
             <th className="px-5 py-3 font-semibold">Brand</th>
             <th className="hidden px-5 py-3 font-semibold sm:table-cell">Type</th>
@@ -132,9 +135,9 @@ function Table({ apps, onOpen, rowAction }: {
         </thead>
         <tbody className="divide-y divide-line">
           {apps.map((a) => (
-            <tr key={a.id} onClick={() => onOpen(a.id)} className="cursor-pointer transition hover:bg-paper">
-              <td className="px-5 py-4 font-medium text-ink">
-                <Link to={`/queue/${a.id}`} className="hover:text-brand" onClick={(e) => e.stopPropagation()}>
+            <tr key={a.id} onClick={() => onOpen(a.id)} className="cursor-pointer transition hover:bg-brand-soft/40">
+              <td className="px-5 py-4 font-semibold text-ink">
+                <Link to={`/queue/${a.id}`} className="rounded hover:text-brand hover:underline" onClick={(e) => e.stopPropagation()}>
                   {a.brand_name}
                 </Link>
               </td>
@@ -146,18 +149,16 @@ function Table({ apps, onOpen, rowAction }: {
           ))}
         </tbody>
       </table>
-    </div>
+    </Card>
   );
 }
 
 function EmptyState() {
   return (
-    <div className="mt-6 rounded-xl border border-dashed border-line bg-surface p-12 text-center">
-      <p className="font-serif text-lg text-ink">No applications yet</p>
+    <Card className="mt-6 border-dashed p-12 text-center">
+      <p className="font-serif text-xl text-ink">No applications yet</p>
       <p className="mt-1 text-muted">Submit a label to start a review.</p>
-      <Link to="/submit" className="mt-4 inline-block rounded-md bg-brand px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110">
-        Submit an application
-      </Link>
-    </div>
+      <Link to="/submit" className={`${btnPrimary} mt-5 px-4 py-2.5 text-sm`}>Submit an application</Link>
+    </Card>
   );
 }
