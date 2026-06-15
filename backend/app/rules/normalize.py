@@ -1,8 +1,8 @@
 """Text normalization for field matching.
 
 Two levels:
-- `normalize`: light cleanup (Unicode NFKC, straighten curly quotes, collapse spaces) —
-  preserves case, used where case matters (e.g. the warning's caps check, step 4).
+- `_normalize`: internal helper for `fold` — light cleanup (Unicode NFKC, straighten
+  curly quotes, collapse spaces), preserving case.
 - `fold`: aggressive fold for fuzzy field matching — lowercases, DROPS apostrophes
   (so "STONE'S" and "Stone's" both become "stones"), turns other punctuation into
   spaces, collapses. This is what makes Dave's "STONE'S THROW" vs "Stone's Throw" match.
@@ -19,7 +19,7 @@ _NON_ALNUM = re.compile(r"[^a-z0-9]+")
 _NON_ALPHA = re.compile(r"[^a-z]+")
 
 
-def normalize(text: str) -> str:
+def _normalize(text: str) -> str:
     text = unicodedata.normalize("NFKC", text)
     text = text.replace("’", "'").replace("‘", "'")
     text = text.replace("“", '"').replace("”", '"')
@@ -35,7 +35,7 @@ def _strip_diacritics(text: str) -> str:
 
 
 def fold(text: str) -> str:
-    text = _strip_diacritics(normalize(text)).lower()
+    text = _strip_diacritics(_normalize(text)).lower()
     text = _APOS.sub("", text)  # STONE'S -> STONES (no space)
     text = _NON_ALNUM.sub(" ", text)  # other punctuation -> space
     return _WS.sub(" ", text).strip()
