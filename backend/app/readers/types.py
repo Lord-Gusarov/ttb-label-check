@@ -1,6 +1,6 @@
 """Shared data types for the reading layer.
 
-Every reader (OCR engine or local VLM) returns the SAME `ReadResult` shape, so the
+Every reader returns the SAME `ReadResult` shape, so the
 rest of the pipeline — field extraction, rules engine, the annotation overlay — is
 decoupled from which engine actually read the label.
 """
