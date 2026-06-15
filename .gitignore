@@ -42,3 +42,6 @@ backend/data/
 
 # Eval dataset (generated / downloaded; regenerated via eval/fetch_cola.py + eval/generate*.py)
 eval/data/
+
+# Local planning artifacts (brainstorming specs / implementation plans)
+docs/superpowers/
