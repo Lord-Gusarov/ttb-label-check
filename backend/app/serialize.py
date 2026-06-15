@@ -5,6 +5,7 @@ import re
 
 from app.pipeline import VerificationResult
 from app.readers.types import ReadResult
+from app.rules.normalize import despace
 from app.rules.result import FieldResult
 from app.rules.spec.government_warning import CANONICAL_TOKENS
 
@@ -16,15 +17,12 @@ FIELD_KIND: dict[str, str] = {
     "class_type": "match",
     "alcohol_content": "match",
     "net_contents": "match",
+    "responsible_party": "match",
+    "country_of_origin": "match",
     "warning_text": "present",
     "warning_caps": "present",
     "warning_bold": "present",
 }
-
-def _despace(text: str | None) -> str:
-    """Lowercase, alphanumeric-only — collapses OCR space differences."""
-    return re.sub(r"[^a-z0-9]", "", (text or "").lower())
-
 
 def _tokens(text: str | None) -> list[str]:
     return re.findall(r"[a-z0-9]+", (text or "").lower())
@@ -53,12 +51,12 @@ def _locate_boxes(field: FieldResult, read: ReadResult) -> list[list[int]]:
     if field.field.startswith("warning"):
         return [[int(c) for c in w.bbox] for w in read.words if _is_warning_line(w.text)]
 
-    target = _despace(field.found or field.expected)
+    target = despace(field.found or field.expected, strip_accents=False)
     if not target:
         return []
     boxes = []
     for w in read.words:
-        wt = _despace(w.text)
+        wt = despace(w.text, strip_accents=False)
         if len(wt) >= 2 and (wt in target or target in wt):
             boxes.append([int(c) for c in w.bbox])
     return boxes

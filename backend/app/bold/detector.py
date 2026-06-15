@@ -13,7 +13,6 @@ confident measurement reads PASS, anything unclear is NEEDS_REVIEW for the agent
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 
 import cv2
@@ -21,6 +20,7 @@ import numpy as np
 
 from app.readers.preprocess import to_grayscale
 from app.readers.types import WordBox
+from app.rules.normalize import despace
 
 _BOLD_RATIO = 1.15      # prefix stroke width must exceed body by this factor to read as bold
                         # (1.15, not 1.20: genuinely-bold clean prefixes measure ~1.16x; flagging
@@ -35,10 +35,6 @@ class BoldFinding:
     is_bold: bool | None  # True / False / None (could not determine)
     ratio: float | None  # prefix stroke width / body stroke width
     detail: str
-
-
-def _despace(text: str) -> str:
-    return re.sub(r"[^a-z]", "", text.lower())
 
 
 def _stroke_width(gray_crop: np.ndarray) -> float | None:
@@ -88,7 +84,8 @@ def detect_warning_bold(image: np.ndarray, words: list[WordBox] | None) -> BoldF
     """
     gray = to_grayscale(image)
     words = words or []
-    prefix = [w for w in words if "government" in _despace(w.text) or "warning" in _despace(w.text)]
+    prefix = [w for w in words if "government" in despace(w.text, keep_digits=False, strip_accents=False)
+              or "warning" in despace(w.text, keep_digits=False, strip_accents=False)]
     if not prefix:
         return BoldFinding(None, None, "could not locate the warning prefix to assess bold")
 

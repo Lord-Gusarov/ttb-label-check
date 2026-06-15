@@ -7,6 +7,8 @@ so the two can never drift apart.
 
 import re
 
+from app.rules.normalize import despace
+
 #: The first two words must appear in capital letters and bold type (16.21);
 #: the remainder must NOT be bold.
 WARNING_PREFIX = "GOVERNMENT WARNING:"
@@ -23,10 +25,6 @@ CANONICAL_WARNING = (
 def _tokens(text: str) -> list[str]:
     """Lowercase alphanumeric word tokens (drops punctuation/whitespace)."""
     return re.findall(r"[a-z0-9]+", text.lower())
-
-
-def _despace(text: str) -> str:
-    return re.sub(r"[^a-z0-9]", "", text.lower())
 
 
 #: The canonical warning as ordered word tokens — the legal content to verify.
@@ -52,7 +50,7 @@ def missing_canonical_tokens(candidate: str) -> list[str]:
 
     Also used to *score* re-read candidates (fewer missing = better recovery).
     """
-    despaced = _despace(candidate)
+    despaced = despace(candidate, strip_accents=False)
     pos = 0
     missing: list[str] = []
     # A short token ('1', 'the', 'of') may spuriously occur far ahead — e.g. the '1' in

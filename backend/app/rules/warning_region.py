@@ -14,7 +14,6 @@ original full-image text (which will FAIL / flag a genuinely-missing warning).
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 
 import cv2
@@ -22,6 +21,7 @@ import numpy as np
 
 from app.readers.base import Reader
 from app.readers.types import WordBox
+from app.rules.normalize import despace
 from app.rules.spec.government_warning import missing_canonical_tokens
 
 # Re-OCR the warning band at several upscales and keep the best read. No single scale
@@ -36,10 +36,6 @@ _PAD_PX = 14  # a little headroom above the anchor so the prefix isn't clipped
 #: Scales for the Tier-1 deskewed re-read — fewer than Tier 0's, to bound latency: Tier 0
 #: already explored scales at 0°, so Tier 1 only varies the (measured) angle.
 ROTATION_SCALES = (1.5, 2.5)
-
-
-def _despace(text: str) -> str:
-    return re.sub(r"[^a-z]", "", text.lower())
 
 
 def _rotate(img: np.ndarray, angle: float) -> np.ndarray:
@@ -180,12 +176,13 @@ def _band(image: np.ndarray, words: list[WordBox]) -> np.ndarray | None:
 
 def _anchor_boxes(words: list[WordBox]) -> list[WordBox]:
     """Pass-1 boxes that mark the warning: the prefix, else distinctive warning tokens."""
-    anchors = [w for w in words if "governmentwarning" in _despace(w.text)]
+    anchors = [w for w in words if "governmentwarning" in despace(w.text, keep_digits=False, strip_accents=False)]
     if not anchors:
         anchors = [
             w
             for w in words
-            if "warning" in _despace(w.text) or "surgeongeneral" in _despace(w.text)
+            if "warning" in despace(w.text, keep_digits=False, strip_accents=False)
+            or "surgeongeneral" in despace(w.text, keep_digits=False, strip_accents=False)
         ]
     return anchors
 
@@ -201,8 +198,8 @@ def reread_warning(
 
     Searches angle × scale and keeps the read with the most canonical-warning tokens
     recovered, short-circuiting on a perfect read. ``angles=(0,)`` is the cheap default
-    (Tier 0 — scale search only); pass ``ROTATION_ANGLES`` + ``ROTATION_SCALES`` for the
-    Tier-1 rotation sweep.
+    (scale search only); pass non-zero ``angles`` (e.g. a measured skew) to also search
+    rotation.
 
     Returns None when no warning anchor is present (nothing to re-read) or the crop is
     degenerate. Any failure is non-fatal: callers fall back to the full-image text.

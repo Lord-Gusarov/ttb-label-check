@@ -16,6 +16,7 @@ import unicodedata
 _WS = re.compile(r"\s+")
 _APOS = re.compile(r"['`’‘]")
 _NON_ALNUM = re.compile(r"[^a-z0-9]+")
+_NON_ALPHA = re.compile(r"[^a-z]+")
 
 
 def normalize(text: str) -> str:
@@ -40,6 +41,13 @@ def fold(text: str) -> str:
     return _WS.sub(" ", text).strip()
 
 
-def despace(text: str) -> str:
-    """Lowercase, keep only [a-z0-9] — robust to spacing/granularity (750 mL ~ 750mL)."""
-    return _NON_ALNUM.sub("", _strip_diacritics(text).lower())
+def despace(text: str | None, *, keep_digits: bool = True, strip_accents: bool = True) -> str:
+    """Strip text to bare characters for spacing-tolerant matching ("750 mL" ~ "750mL").
+
+    keep_digits=False also drops 0-9 (the warning-geometry call sites match digit-free
+    anchors). strip_accents folds é→e before stripping (default); strip_accents=False
+    drops the accented char entirely, matching the legacy `[^a-z]`/`[^a-z0-9]` behavior.
+    """
+    s = _strip_diacritics(text or "") if strip_accents else (text or "")
+    pattern = _NON_ALNUM if keep_digits else _NON_ALPHA
+    return pattern.sub("", s.lower())
