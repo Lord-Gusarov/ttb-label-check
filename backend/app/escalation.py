@@ -1,6 +1,8 @@
 """Tier-2 escalation: re-read the WHOLE label with a MODEL when local OCR can't verify it.
 
-ON by default (gpt-5.4-mini) and strictly FAIL-SAFE. If the key, network, or API is
+OFF by default (opt-in) and strictly FAIL-SAFE. The pipeline is fully local and air-gapped
+unless an operator explicitly opts in — escalation sends the label image off-host to an
+external provider, so it is never enabled implicitly. When on and the key, network, or API is
 unavailable, slow, or errors, this returns ``None`` and the pipeline keeps its deterministic
 ``NEEDS_REVIEW``, leaving the call to a human. A model is never *required*; it only ever
 *helps*. Nothing here can stop or crash a verification.
@@ -9,11 +11,11 @@ It only ever READS — it returns transcribed field text that the deterministic 
 judge. It never renders the verdict, and it is **blind to the declared application values**
 (it only sees the image), so it cannot "helpfully" output whatever would match.
 
-Configure with env ``WARNING_ESCALATION_MODEL``. Set it to ``"off"`` to DISABLE escalation
-entirely (the air-gapped deployment) so the pipeline is fully local. Point it at another
-provider/endpoint (e.g. Azure OpenAI in a FedRAMP boundary, or a local server) to swap the
-reader — the verdict logic is unchanged. The OpenAI key is read from ``$OPENAI_API_KEY`` or
-``~/.oai_key``.
+Enable with env ``WARNING_ESCALATION_MODEL`` — e.g. set it to ``"openai:gpt-5.4-mini"`` (the
+recommended model, see below). Leaving it unset (or ``"off"``) keeps escalation DISABLED and
+the pipeline fully local. Point it at another provider/endpoint (e.g. Azure OpenAI in a
+FedRAMP boundary, or a local server) to swap the reader — the verdict logic is unchanged. The
+OpenAI key is read from ``$OPENAI_API_KEY`` or ``~/.oai_key``.
 """
 
 from __future__ import annotations
@@ -29,21 +31,25 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
-#: Tier 2 is ON by default. Set env WARNING_ESCALATION_MODEL="off" to disable (air-gapped),
-#: or point it at another provider/model. Benchmarked: gpt-5.4-mini and gpt-4.1-mini both hit
-#: 1.00 warning-recovery on the hard labels at ~2s; 5.4-mini is marginally faster / fewer
-#: tokens (per-token price likely higher). gpt-4o-mini matched accuracy but ~20x the tokens.
-_DEFAULT_MODEL = "openai:gpt-5.4-mini"
+#: Default when WARNING_ESCALATION_MODEL is unset: escalation disabled (fully local/air-gapped).
+#: Tier 2 is opt-in because escalation sends the label image off-host. Recommended value when
+#: enabling is "openai:gpt-5.4-mini": benchmarked at 1.00 warning-recovery on the hard labels at
+#: ~2s (gpt-4.1-mini ties it; 5.4-mini is marginally faster / fewer tokens; gpt-4o-mini matched
+#: accuracy but ~20x the tokens).
+_DEFAULT_SPEC = "off"
 _DISABLED = {"", "off", "none", "disabled", "0", "false"}
 
 #: The fields the model transcribes. It is given the IMAGE only — never the declared values.
-FIELDS = ("brand_name", "class_type", "alcohol_content", "net_contents", "government_warning")
+FIELDS = ("brand_name", "class_type", "alcohol_content", "net_contents",
+          "responsible_party", "country_of_origin", "government_warning")
 _LABEL_PROMPT = (
     "Read this U.S. alcohol label and transcribe these fields EXACTLY as printed — do not "
     "paraphrase, infer, or correct anything. Return ONLY JSON with keys: brand_name, "
-    "class_type, alcohol_content, net_contents, government_warning. For government_warning, "
-    "transcribe the full Government Warning paragraph verbatim. Use an empty string for any "
-    "field that is not present or not readable."
+    "class_type, alcohol_content, net_contents, responsible_party, country_of_origin, "
+    "government_warning. For responsible_party, transcribe the bottler/producer name & address "
+    "statement (e.g. 'Bottled by ACME, City, ST'); for country_of_origin, the origin statement "
+    "if any (e.g. 'Product of France'). For government_warning, transcribe the full Government "
+    "Warning paragraph verbatim. Use an empty string for any field not present or not readable."
 )
 
 
@@ -94,7 +100,7 @@ _BOLD_PROMPT = (
 def judge_warning_bold(crop: np.ndarray) -> str | None:
     """Best-effort VLM adjudication of prefix bold -> 'yes'|'no'|'unclear', or None when
     escalation is disabled/unavailable. Never raises (fail-safe)."""
-    spec = os.environ.get("WARNING_ESCALATION_MODEL", _DEFAULT_MODEL).strip()
+    spec = os.environ.get("WARNING_ESCALATION_MODEL", _DEFAULT_SPEC).strip()
     if spec.lower() in _DISABLED:
         return None
     try:
@@ -120,9 +126,9 @@ def _openai_read_label(image: np.ndarray, model: str) -> dict[str, str] | None:
 def escalate_label_read(image: np.ndarray) -> dict[str, str] | None:
     """Best-effort model re-read of the whole label → {field: transcribed text}, or None when
     escalation is disabled/unavailable (caller keeps its local verdict). Never raises."""
-    spec = os.environ.get("WARNING_ESCALATION_MODEL", _DEFAULT_MODEL).strip()
+    spec = os.environ.get("WARNING_ESCALATION_MODEL", _DEFAULT_SPEC).strip()
     if spec.lower() in _DISABLED:
-        return None  # explicitly disabled (e.g. air-gapped) → fully local, fail-safe
+        return None  # disabled by default (air-gapped) unless opted in → fully local, fail-safe
     try:
         provider, _, model = spec.partition(":")
         if provider == "openai":

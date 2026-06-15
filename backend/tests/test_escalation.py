@@ -1,5 +1,5 @@
-"""Tier-2 escalation is ON by default but strictly FAIL-SAFE: a missing/broken model, or
-an explicit "off", degrades to a human review — it never blocks or crashes the pipeline."""
+"""Tier-2 escalation is OFF by default (opt-in) and strictly FAIL-SAFE: when not enabled, or
+when the model is missing/broken, it degrades to a human review — never blocks or crashes."""
 
 from __future__ import annotations
 
@@ -13,11 +13,11 @@ def _img() -> np.ndarray:
     return np.zeros((10, 10, 3), dtype=np.uint8)
 
 
-def test_default_on_without_key_returns_none(monkeypatch: pytest.MonkeyPatch) -> None:
-    # Default is openai:gpt-4o-mini, but with no key reachable it must degrade to None.
+def test_default_off_is_opt_in(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Escalation is off by default: with the env var unset it must NOT call out, even when a
+    # key is available — opting in requires explicitly setting WARNING_ESCALATION_MODEL.
     monkeypatch.delenv("WARNING_ESCALATION_MODEL", raising=False)
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    monkeypatch.setattr("app.escalation._read_key", lambda: None)
+    monkeypatch.setattr("app.escalation._read_key", lambda: "sk-fake")
     assert escalate_label_read(_img()) is None
 
 

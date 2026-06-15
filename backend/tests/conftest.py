@@ -1,8 +1,9 @@
 """Test-suite defaults.
 
-Tier-2 model escalation is ON by default in production, but the test suite must stay fully
-local, offline, and deterministic — so we disable it for every test. Tests that exercise
-escalation behaviour re-enable/override it via their own ``monkeypatch``.
+Tier-2 model escalation is opt-in (off unless WARNING_ESCALATION_MODEL is set), and the test
+suite must stay fully local, offline, and deterministic — so we pin it off for every test
+regardless of the developer's environment. Tests that exercise escalation behaviour
+re-enable/override it via their own ``monkeypatch``.
 """
 
 from __future__ import annotations

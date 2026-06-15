@@ -16,6 +16,22 @@ router = APIRouter(prefix="/api/applications", tags=["applications"])
 
 _DECISIONS = {"approved", "rejected", "needs_correction"}
 
+#: Reject uploads larger than this before decoding — a memory-exhaustion guard on an otherwise
+#: unauthenticated endpoint. A real label image (even a high-res phone photo or a COLA scan) is
+#: comfortably under this, so legitimate uploads are never affected.
+_MAX_UPLOAD_BYTES = 25 * 1024 * 1024  # 25 MB
+#: Reject images whose decoded raster exceeds this many pixels — a decompression/pixel-bomb
+#: guard. A tiny compressed file can declare huge dimensions, and every pipeline tier (scale
+#: search, rescues) then runs over the full raster. ~50 MP is far above any genuine label.
+_MAX_PIXELS = 50_000_000  # 50 megapixels
+
+
+async def _read_capped(image: UploadFile) -> bytes:
+    raw = await image.read()
+    if len(raw) > _MAX_UPLOAD_BYTES:
+        raise HTTPException(413, f"image exceeds the {_MAX_UPLOAD_BYTES // (1024 * 1024)}MB limit")
+    return raw
+
 
 class Decision(BaseModel):
     decision: str
@@ -40,6 +56,9 @@ def _decode_or_400(raw: bytes) -> np.ndarray:
     img = cv2.imdecode(np.frombuffer(raw, np.uint8), cv2.IMREAD_COLOR)
     if img is None:
         raise HTTPException(400, "image is not a readable JPEG/PNG")
+    h, w = img.shape[:2]
+    if h * w > _MAX_PIXELS:
+        raise HTTPException(413, f"image resolution exceeds the {_MAX_PIXELS // 1_000_000}MP limit")
     return img
 
 
@@ -50,6 +69,9 @@ async def preview(
     class_type: str = Form(...),
     alcohol_content: str = Form(...),
     net_contents: str = Form(...),
+    source: str = Form(default=""),
+    country_of_origin: str = Form(default=""),
+    responsible_party: str = Form(default=""),
     image: UploadFile = File(...),
 ) -> dict:
     """Verify a label WITHOUT persisting it — the submit-time self-check.
@@ -59,9 +81,11 @@ async def preview(
     """
     if commodity_type not in RULESETS:
         raise HTTPException(400, f"unsupported commodity '{commodity_type}'")
-    img = _decode_or_400(await image.read())
+    img = _decode_or_400(await _read_capped(image))
     application = {"brand_name": brand_name, "class_type": class_type,
-                   "alcohol_content": alcohol_content, "net_contents": net_contents}
+                   "alcohol_content": alcohol_content, "net_contents": net_contents,
+                   "source": source, "country_of_origin": country_of_origin,
+                   "responsible_party": responsible_party}
     return serialize_verification(verify_label(img, commodity_type, application))
 
 
@@ -72,15 +96,20 @@ async def create(
     class_type: str = Form(...),
     alcohol_content: str = Form(...),
     net_contents: str = Form(...),
+    source: str = Form(default=""),
+    country_of_origin: str = Form(default=""),
+    responsible_party: str = Form(default=""),
     image: UploadFile = File(...),
 ) -> dict:
     if commodity_type not in RULESETS:
         raise HTTPException(400, f"unsupported commodity '{commodity_type}'")
-    raw = await image.read()
+    raw = await _read_capped(image)
     _decode_or_400(raw)
     a = Application.new(commodity_type=commodity_type, brand_name=brand_name,
                         class_type=class_type, alcohol_content=alcohol_content,
-                        net_contents=net_contents, image=raw)
+                        net_contents=net_contents, source=source,
+                        country_of_origin=country_of_origin,
+                        responsible_party=responsible_party, image=raw)
     store.add(a)
     return {"id": a.id, "status": a.status}
 
@@ -98,7 +127,9 @@ def _ensure_verification(a: Application, *, force: bool = False) -> None:
     if img is None:
         raise HTTPException(400, "stored image could not be decoded")
     application = {"brand_name": a.brand_name, "class_type": a.class_type,
-                   "alcohol_content": a.alcohol_content, "net_contents": a.net_contents}
+                   "alcohol_content": a.alcohol_content, "net_contents": a.net_contents,
+                   "source": a.source, "country_of_origin": a.country_of_origin,
+                   "responsible_party": a.responsible_party}
     a.verification = serialize_verification(verify_label(img, a.commodity_type, application))
     store.update(a)
 
