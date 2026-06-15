@@ -1,4 +1,4 @@
-export type Verdict = "pass" | "warn" | "needs_review" | "fail";
+export type Verdict = "pass" | "warn" | "needs_review";
 export type Box = [number, number, number, number];
 
 export interface FieldResult {

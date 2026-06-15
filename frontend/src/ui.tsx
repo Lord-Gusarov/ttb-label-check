@@ -5,7 +5,6 @@ export const VERDICT: Record<Verdict, { label: string; cls: string; hex: string 
   pass: { label: "Pass", cls: "text-pass bg-pass-soft", hex: "#1f7a4d" },
   warn: { label: "Review", cls: "text-flag bg-flag-soft", hex: "#a36400" },
   needs_review: { label: "Review", cls: "text-flag bg-flag-soft", hex: "#a36400" },
-  fail: { label: "Fail", cls: "text-fail bg-fail-soft", hex: "#b42318" },
 };
 
 const STATUS: Record<string, { label: string; cls: string }> = {
