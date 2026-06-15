@@ -7,7 +7,7 @@ read the label; here nothing but rules decide.
 
 from __future__ import annotations
 
-from app.rules.result import FieldResult, LabelResult, Verdict, worst
+from app.rules.result import FieldResult, LabelResult
 from app.rules.rulesets import ruleset_for
 
 
@@ -23,6 +23,8 @@ def evaluate(commodity: str, application: dict, label_text: str) -> LabelResult:
     results: list[FieldResult] = []
 
     for policy in policies:
+        if policy.applies_when is not None and not policy.applies_when(application):
+            continue  # conditional field not applicable (e.g. country-of-origin on a domestic product)
         expected = application.get(policy.field)
         verdict, found, detail = policy.comparator(
             expected, label_text, **policy.params
@@ -38,5 +40,4 @@ def evaluate(commodity: str, application: dict, label_text: str) -> LabelResult:
             )
         )
 
-    overall = worst([r.verdict for r in results]) if results else Verdict.NEEDS_REVIEW
-    return LabelResult(commodity=commodity, overall=overall, fields=results)
+    return LabelResult.from_fields(commodity, results)

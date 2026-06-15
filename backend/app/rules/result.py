@@ -55,3 +55,12 @@ class LabelResult:
     commodity: str
     overall: Verdict
     fields: list[FieldResult] = field(default_factory=list)
+
+    @classmethod
+    def from_fields(cls, commodity: str, fields: list[FieldResult]) -> "LabelResult":
+        """The single place a label verdict is derived: overall = the worst field verdict.
+
+        Building results through this factory makes it impossible for `overall` to disagree
+        with `fields`. `worst([])` is NEEDS_REVIEW, so an empty field list rolls up safely.
+        """
+        return cls(commodity=commodity, overall=worst([f.verdict for f in fields]), fields=fields)

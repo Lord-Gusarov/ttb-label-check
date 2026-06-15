@@ -1,8 +1,8 @@
 """End-to-end verification pipeline: read the label, then apply the rules.
 
 Ties the two halves together — the pluggable reader (step 2) extracts text; the
-deterministic engine (step 3) renders the verdict. The HTTP layer (step 5) and batch
-runner (step 6) both call `verify_label`.
+deterministic engine (step 3) renders the verdict. The HTTP layer (step 5) calls
+`verify_label`.
 
 Reading escalates through two tiers; the second only runs when the first left a field
 *unverified* (NEEDS_REVIEW / FAIL):
@@ -31,12 +31,13 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TypeVar
 
+import cv2
 import numpy as np
 
 from app.escalation import escalate_label_read
 from app.readers import ReadResult, build_reader
 from app.rules import LabelResult, evaluate
-from app.rules.result import FieldResult, Verdict, severity, worst
+from app.rules.result import FieldResult, Verdict, severity
 from app.rules.warning import evaluate_warning
 from app.rules.warning_region import deskew_reread, reread_warning, vertical_reread
 
@@ -59,6 +60,18 @@ def _safe(fn: Callable[[], _T], what: str) -> _T | None:
     except Exception:  # noqa: BLE001 — a tier failing must never break verification
         logger.warning("%s failed; keeping current result", what, exc_info=True)
         return None
+
+
+def _downscale(image: np.ndarray, max_side: int = 1600) -> np.ndarray:
+    """Shrink large scans before the model upload (the model reads text, not exact pixels).
+    Caps tail latency — a 4700px label otherwise costs ~10s just to encode + upload. OCR and
+    the local tiers keep the original (their boxes drive the UI overlay)."""
+    h, w = image.shape[:2]
+    longest = max(h, w)
+    if longest <= max_side:
+        return image
+    s = max_side / longest
+    return cv2.resize(image, (round(w * s), round(h * s)), interpolation=cv2.INTER_AREA)
 
 
 def _warning_text(fields: list[FieldResult]) -> FieldResult | None:
@@ -99,7 +112,8 @@ def _model_field_results(
     word boxes to locate the prefix, so local OCR boxes are threaded in via warning_words."""
     text = " ".join(
         model.get(k, "")
-        for k in ("brand_name", "class_type", "alcohol_content", "net_contents")
+        for k in ("brand_name", "class_type", "alcohol_content", "net_contents",
+                  "responsible_party", "country_of_origin")
     )
     field_results = list(evaluate(commodity, application, text).fields)
     warning_results = list(evaluate_warning(image, model.get("government_warning", ""), warning_words or [], None))
@@ -142,31 +156,14 @@ def verify_label(
 
     fields = list(field_result.fields) + warning_fields
 
-    # Tier 2 — label-level model escalation, only if ANY field (or the warning) is still
-    # unverified. Runs BEFORE the local rotation sweep: measured, the model resolves the
-    # same labels in ~3s that the sweep burns up to ~10s failing to fix (rotation only
-    # helps geometry; the model helps geometry AND recognition). One declared-blind
-    # transcription of the whole label; the engine re-checks every field against it and
-    # adopts only per-field improvements. Env-gated + fail-safe: returns None when
-    # disabled/unavailable, and we fall through to the local tiers.
-    if any(f.verdict is not Verdict.PASS for f in fields):
-        model = _timed(
-            "tier2_model", lambda: _safe(lambda: escalate_label_read(image), "tier-2 label read")
-        )
-        if model:
-            candidate = _model_field_results(commodity, application, model, image, warning_words=read.words)
-            merged_fields = _merge_better(fields, candidate)
-            if merged_fields != fields:  # adopted at least one improvement
-                fields, tier = merged_fields, 2
-
-    # Tier 1 (continued) — LOCAL geometry rescues when the warning is still unverified (model off /
-    # unavailable / didn't fix it). No egress: this is the air-gapped path. Each attempt
-    # is one measured correction + one re-read (no blind sweeps), adopted only if it
-    # improves the warning verdict:
+    # LOCAL geometry rescues (deskew / 90° re-read) — the AIR-GAPPED fallback ONLY. A VLM reads
+    # rotated/curved warnings natively, so when the model is available it supersedes these: we never
+    # run both (that was the double-grind). Each is one measured correction + one re-read, adopted
+    # only if it improves the warning verdict:
     #   deskew    — measure the band's skew from the ink profile, re-read once corrected
     #   vertical  — sidebar/keg-collar warnings printed 90° to the label, re-read upright
-    def _rescues() -> list[FieldResult]:
-        out = fields
+    def _rescues(start: list[FieldResult]) -> list[FieldResult]:
+        out = start
         for what, attempt in (
             ("local deskew", lambda: deskew_reread(image, read.words, reader)),
             ("local vertical re-read", lambda: vertical_reread(image, reader, read.words)),
@@ -182,8 +179,23 @@ def verify_label(
                     out = [by_field.get(f.field, f) for f in out]
         return out
 
-    fields = _timed("tier1_rescues", _rescues)
+    # Tier 2 — the model is the FINAL escalation when ANY field is still unverified, and nothing
+    # runs after it (unresolved → NEEDS_REVIEW for a human). The image is DOWNSCALED for the upload
+    # (the model reads text, not exact pixels), capping latency on large scans. Declared-blind
+    # whole-label read; the engine adopts only per-field improvements. Fail-safe: returns None when
+    # the model is off/unavailable — and ONLY then do the local geometry rescues run (air-gapped path).
+    if any(f.verdict is not Verdict.PASS for f in fields):
+        model = _timed(
+            "tier2_model",
+            lambda: _safe(lambda: escalate_label_read(_downscale(image)), "tier-2 label read"),
+        )
+        if model:
+            candidate = _model_field_results(commodity, application, model, image, warning_words=read.words)
+            merged_fields = _merge_better(fields, candidate)
+            if merged_fields != fields:  # adopted at least one improvement
+                fields, tier = merged_fields, 2
+        else:
+            fields = _timed("tier1_rescues", lambda: _rescues(fields))
 
-    overall = worst([f.verdict for f in fields])
-    merged = LabelResult(commodity=commodity, overall=overall, fields=fields)
+    merged = LabelResult.from_fields(commodity, fields)
     return VerificationResult(commodity=commodity, result=merged, read=read, warning_tier=tier)
