@@ -62,11 +62,12 @@ def test_verify_flags_wrong_abv_end_to_end():
 
 @pytest.mark.skipif(not CLEAN.exists(), reason="seed corpus not generated")
 def test_automated_verdict_is_never_terminal_fail():
-    # Even with a wrong field, NO automated field verdict — and not the overall — is FAIL.
+    # Automated checks never auto-reject: every verdict is one of the three review tiers.
+    _ALLOWED = (Verdict.PASS, Verdict.WARN, Verdict.NEEDS_REVIEW)
     bad_app = dict(APP, alcohol_content="40% Alc./Vol.", brand_name="NOT THE BRAND")
     out = verify_label(load_image(CLEAN), "distilled_spirits", bad_app)
-    assert out.result.overall is not Verdict.FAIL
-    assert all(f.verdict is not Verdict.FAIL for f in out.result.fields)
+    assert out.result.overall in _ALLOWED
+    assert all(f.verdict in _ALLOWED for f in out.result.fields)
 
 
 @pytest.mark.skipif(not CLEAN.exists(), reason="seed corpus not generated")

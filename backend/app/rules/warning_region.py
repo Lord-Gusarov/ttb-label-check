@@ -9,7 +9,7 @@ deterministic checks degrade to NEEDS_REVIEW (request a flatter image) rather th
 
 This is the hot-path fix: deterministic, ~0.7s extra, no model in the legal verdict.
 When pass 1 found no warning anchor at all, we return None and the checks run on the
-original full-image text (which will FAIL / flag a genuinely-missing warning).
+original full-image text (which will flag a genuinely-missing warning).
 """
 
 from __future__ import annotations

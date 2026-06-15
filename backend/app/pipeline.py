@@ -5,7 +5,7 @@ deterministic engine (step 3) renders the verdict. The HTTP layer (step 5) calls
 `verify_label`.
 
 Reading escalates through two tiers; the second only runs when the first left a field
-*unverified* (NEEDS_REVIEW / FAIL):
+*unverified* (NEEDS_REVIEW):
 
     Tier 1  LOCAL reading — RapidOCR two-pass with scale search, plus measured geometry
             rescues (ink-profile deskew; 90° re-read for sidebar/keg-collar warnings).
@@ -85,7 +85,9 @@ def _verified(fields: list[FieldResult]) -> bool:
 
 def _wt_severity(fields: list[FieldResult]) -> int:
     f = _warning_text(fields)
-    return severity(f.verdict) if f else severity(Verdict.FAIL)
+    # No warning_text field present → treat as worse than any real verdict, so any
+    # recovered re-read is adopted (preserves the prior FAIL-sentinel comparison).
+    return severity(f.verdict) if f else severity(Verdict.NEEDS_REVIEW) + 1
 
 
 def _merge_better(

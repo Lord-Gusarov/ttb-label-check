@@ -66,7 +66,7 @@ def test_preview_verifies_without_persisting():
         r = client.post("/api/applications/preview", data=fields,
                         files={"image": ("label.png", fh, "image/png")})
     assert r.status_code == 200, r.text
-    assert r.json()["overall"] in ("pass", "warn", "needs_review", "fail")
+    assert r.json()["overall"] in ("pass", "warn", "needs_review")
     after = len(client.get("/api/applications").json())
     assert after == before  # preview must NOT create a queue item
 
@@ -142,3 +142,35 @@ def test_reverify_reruns_and_keeps_status():
 
 def test_reverify_unknown_id_404():
     assert client.post("/api/applications/none/reverify").status_code == 404
+
+
+def _fields():
+    return dict(commodity_type="distilled_spirits", brand_name="X", class_type="Y",
+                alcohol_content="40%", net_contents="750 mL")
+
+
+def test_oversized_upload_rejected():
+    # Memory-exhaustion guard: a body over the byte cap is refused before any decode.
+    from app.api.applications import _MAX_UPLOAD_BYTES
+    blob = b"\x00" * (_MAX_UPLOAD_BYTES + 1)
+    r = client.post("/api/applications", data=_fields(),
+                    files={"image": ("big.png", blob, "image/png")})
+    assert r.status_code == 413, r.text
+    # Same guard on the non-persisting preview endpoint.
+    r = client.post("/api/applications/preview", data=_fields(),
+                    files={"image": ("big.png", blob, "image/png")})
+    assert r.status_code == 413, r.text
+
+
+def test_pixel_bomb_rejected():
+    # Decompression guard: a small file that decodes to a huge raster is refused.
+    import cv2
+    import numpy as np
+    from app.api.applications import _MAX_PIXELS, _MAX_UPLOAD_BYTES
+    side = int(_MAX_PIXELS**0.5) + 50  # area comfortably over the cap
+    huge = np.zeros((side, side, 3), dtype=np.uint8)
+    ok, buf = cv2.imencode(".png", huge)  # compresses tiny (all zeros)
+    assert ok and len(buf) < _MAX_UPLOAD_BYTES  # passes the byte cap, fails the pixel cap
+    r = client.post("/api/applications/preview", data=_fields(),
+                    files={"image": ("bomb.png", buf.tobytes(), "image/png")})
+    assert r.status_code == 413, r.text

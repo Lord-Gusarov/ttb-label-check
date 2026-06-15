@@ -8,7 +8,8 @@ OLD_TOM_TEXT = (
     "OLD TOM DISTILLERY Kentucky Straight Bourbon Whiskey "
     "45% Alc./Vol. (90 Proof) 750 mL "
     "GOVERNMENT WARNING: (1) According to the Surgeon General, women should not "
-    "drink alcoholic beverages during pregnancy because of the risk of birth defects."
+    "drink alcoholic beverages during pregnancy because of the risk of birth defects. "
+    "Bottled by Old Tom Distillery, Louisville, KY"
 )
 
 OLD_TOM_APP = {
@@ -16,6 +17,8 @@ OLD_TOM_APP = {
     "class_type": "Kentucky Straight Bourbon Whiskey",
     "alcohol_content": "45% Alc./Vol. (90 Proof)",
     "net_contents": "750 mL",
+    "responsible_party": "Old Tom Distillery, Louisville, KY",
+    "source": "domestic",  # gating input (not a checked field); skips country-of-origin
 }
 
 
@@ -37,9 +40,9 @@ def test_brand_matches_when_ocr_merges_words():
     assert v is Verdict.PASS
 
 
-def test_brand_absent_fails():
-    v, _, _ = match_text("Nonexistent Brand", OLD_TOM_TEXT, absent_verdict=Verdict.FAIL)
-    assert v is Verdict.FAIL
+def test_brand_absent_uses_absent_verdict():
+    v, _, _ = match_text("Nonexistent Brand", OLD_TOM_TEXT, absent_verdict=Verdict.NEEDS_REVIEW)
+    assert v is Verdict.NEEDS_REVIEW
 
 
 def test_brand_close_typo_warns():
@@ -87,7 +90,9 @@ def test_net_contents_absent_needs_review():
 def test_evaluate_clean_label_all_pass():
     result = evaluate("distilled_spirits", OLD_TOM_APP, OLD_TOM_TEXT)
     assert result.overall is Verdict.PASS
-    assert {f.field for f in result.fields} == set(OLD_TOM_APP)
+    assert {f.field for f in result.fields} == {
+        "brand_name", "class_type", "alcohol_content", "net_contents", "responsible_party",
+    }  # country_of_origin is skipped for a domestic product; "source" gates, it isn't a field
     assert all(f.verdict is Verdict.PASS for f in result.fields)
 
 
@@ -227,3 +232,23 @@ def test_fold_strips_diacritics_for_brand_matching():
 
     assert fold("SÉLÉNÉ") == fold("SELENE")
     assert fold("Château Margaux") == fold("CHATEAU MARGAUX")
+
+
+# --- Conditional fields: country-of-origin applies only to imports --------------------
+def _fields(commodity, app, text):
+    return {f.field for f in evaluate(commodity, app, text).fields}
+
+
+def test_country_of_origin_skipped_for_domestic():
+    app = {"brand_name": "X", "class_type": "Y", "alcohol_content": "40%",
+           "net_contents": "750 mL", "source": "domestic"}
+    fields = _fields("distilled_spirits", app, "X Y 40% 750 mL")
+    assert "country_of_origin" not in fields       # not applicable for domestic
+    assert "responsible_party" in fields           # always applies
+
+
+def test_country_of_origin_present_for_imported():
+    app = {"brand_name": "X", "class_type": "Y", "alcohol_content": "40%",
+           "net_contents": "750 mL", "source": "imported", "country_of_origin": "France"}
+    fields = _fields("wine", app, "X Y 13% 750 mL PRODUCT OF FRANCE CONTAINS SULFITES")
+    assert "country_of_origin" in fields

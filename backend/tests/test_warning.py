@@ -46,7 +46,7 @@ def test_text_missing_needs_review():
 def test_text_reworded_flagged():
     reworded = "GOVERNMENT WARNING: Drinking alcohol may be bad for you. Be careful."
     r = check_warning_text("BRAND " + reworded)
-    assert r.verdict in (Verdict.FAIL, Verdict.NEEDS_REVIEW)
+    assert r.verdict is Verdict.NEEDS_REVIEW
 
 
 def test_text_minor_ocr_noise_not_hard_fail():
