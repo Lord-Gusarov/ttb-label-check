@@ -1,7 +1,8 @@
 """Runtime configuration (env-overridable).
 
-Defaults encode the bake-off outcome: Tesseract on the hot path, RapidOCR as the
-low-confidence fallback. Change `LABELCHECK_READER` to swap engines without touching code.
+Defaults encode the bake-off outcome: RapidOCR on the hot path, with an optional local
+VLM as the low-confidence fallback. Change `LABELCHECK_READER` to swap engines without
+touching code.
 """
 
 from __future__ import annotations

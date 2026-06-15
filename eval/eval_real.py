@@ -6,7 +6,7 @@ separately and record whether ANY angle improves token recovery. This answers, w
 real labels instead of our synthetic art:
   - how often the warning resolves at Tier 0,
   - whether the Tier-1 rotation sweep ever helps real (flat, horizontal) artwork,
-  - which angles (if any) earn their place in ROTATION_ANGLES.
+  - which angles (if any) earn their place in the default rotation sweep.
 
 Also despace-matches the manifest's declared brand / net contents / ABV against the
 full-image text as a cheap field-level readability signal. Output: JSONL + summary.
