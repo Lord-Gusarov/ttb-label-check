@@ -159,7 +159,9 @@ def verify_label(
             lambda: _safe(lambda: reread_warning(image, read.words, reader), "tier-1 re-read"),
         )
         if region is not None:
-            warning_fields = evaluate_warning(image, read.text, read.words, region)
+            # The upscaled crop is the best image of the prefix, so the one-shot model bold
+            # tiebreak (when local stroke-width is unclear) runs HERE — once — not on every pass.
+            warning_fields = evaluate_warning(image, read.text, read.words, region, bold_tiebreak=True)
 
     fields = list(field_result.fields) + warning_fields
 

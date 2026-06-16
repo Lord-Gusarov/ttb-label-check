@@ -95,19 +95,23 @@ def check_warning_caps(raw_text: str) -> FieldResult:
     )
 
 
-def check_warning_bold(image: np.ndarray, words: list[WordBox] | None) -> FieldResult:
-    """Bold via relative stroke width; when the local measure is unclear, a fail-safe VLM
-    adjudicates on the warning crop. Never a hard FAIL: confident bold -> PASS, else NEEDS_REVIEW."""
+def check_warning_bold(
+    image: np.ndarray, words: list[WordBox] | None, *, tiebreak: bool = False
+) -> FieldResult:
+    """Bold via relative stroke width (local, OCR-free). When the local measure is UNCLEAR and
+    ``tiebreak`` is set, a fail-safe model adjudicates ONCE on the (upscaled) warning crop — the
+    caller enables this only on the best crop so the model call isn't repeated across passes.
+    Never a hard FAIL: confident bold -> PASS, else NEEDS_REVIEW."""
     finding = detect_warning_bold(image, words)
     verdict = Verdict.PASS if finding.is_bold is True else Verdict.NEEDS_REVIEW
     found = f"{finding.ratio:.2f}x body" if finding.ratio is not None else None
     detail = finding.detail
-    if finding.is_bold is None:  # unclear -> VLM tiebreak (fail-safe; None when off/unavailable)
+    if finding.is_bold is None and tiebreak:  # unclear -> model tiebreak (fail-safe; None when off)
         vote = judge_warning_bold(image)
         if vote == "yes":
-            verdict, detail = Verdict.PASS, f"{detail}; VLM confirmed bold"
+            verdict, detail = Verdict.PASS, f"{detail}; model confirmed bold"
         elif vote in {"no", "unclear"}:
-            detail = f"{detail}; VLM bold={vote}"
+            detail = f"{detail}; model bold={vote}"
     return FieldResult(
         "warning_bold", "Warning prefix bold", verdict,
         expected="bold", found=found, detail=detail,
@@ -119,20 +123,23 @@ def evaluate_warning(
     text: str,
     words: list[WordBox],
     region: WarningRegion | None = None,
+    *,
+    bold_tiebreak: bool = False,
 ) -> list[FieldResult]:
     """All three warning checks. When a second-pass `region` is supplied (anchored crop,
     upscaled, re-OCR'd), the checks run on that cleaner output: text/caps on the re-read
     text, bold on the upscaled crop + its boxes. Otherwise they fall back to the primary
-    full-image read.
+    full-image read. `bold_tiebreak` enables the one-shot model bold adjudication (the caller
+    sets it only on the best/upscaled crop so it runs at most once per verification).
     """
     if region is not None:
         return [
             check_warning_text(region.text),
             check_warning_caps(region.text),
-            check_warning_bold(region.crop, region.words),
+            check_warning_bold(region.crop, region.words, tiebreak=bold_tiebreak),
         ]
     return [
         check_warning_text(text),
         check_warning_caps(text),
-        check_warning_bold(image, words),
+        check_warning_bold(image, words, tiebreak=bold_tiebreak),
     ]

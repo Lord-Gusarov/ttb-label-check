@@ -94,13 +94,25 @@ def test_judge_warning_bold_rejects_invalid_value(monkeypatch):
 
 
 def test_tiebreak_promotes_unclear_to_pass(monkeypatch):
-    # Local detector unclear -> VLM says yes -> PASS.
+    # Local detector unclear -> model tiebreak says yes -> PASS (only when tiebreak enabled).
     from app.bold.detector import BoldFinding
     monkeypatch.setattr(warning_rules, "detect_warning_bold",
                         lambda img, words: BoldFinding(None, 1.1, "unclear"))
     monkeypatch.setattr(warning_rules, "judge_warning_bold", lambda crop: "yes")
-    fr = warning_rules.check_warning_bold(np.zeros((40, 120, 3), dtype="uint8"), [])
+    fr = warning_rules.check_warning_bold(np.zeros((40, 120, 3), dtype="uint8"), [], tiebreak=True)
     assert fr.verdict is Verdict.PASS
+
+
+def test_tiebreak_skipped_when_not_enabled(monkeypatch):
+    # Without tiebreak, an unclear local read stays NEEDS_REVIEW and the model is NOT called.
+    from app.bold.detector import BoldFinding
+    monkeypatch.setattr(warning_rules, "detect_warning_bold",
+                        lambda img, words: BoldFinding(None, 1.1, "unclear"))
+    called = {"n": 0}
+    monkeypatch.setattr(warning_rules, "judge_warning_bold",
+                        lambda crop: called.__setitem__("n", called["n"] + 1) or "yes")
+    fr = warning_rules.check_warning_bold(np.zeros((40, 120, 3), dtype="uint8"), [])
+    assert fr.verdict is Verdict.NEEDS_REVIEW and called["n"] == 0
 
 
 def test_tiebreak_not_called_when_local_confident(monkeypatch):
@@ -111,5 +123,5 @@ def test_tiebreak_not_called_when_local_confident(monkeypatch):
         called["n"] += 1
         return "no"
     monkeypatch.setattr(warning_rules, "judge_warning_bold", _spy)
-    fr = warning_rules.check_warning_bold(np.zeros((40, 120, 3), dtype="uint8"), [])
+    fr = warning_rules.check_warning_bold(np.zeros((40, 120, 3), dtype="uint8"), [], tiebreak=True)
     assert fr.verdict is Verdict.PASS and called["n"] == 0
