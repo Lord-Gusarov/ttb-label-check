@@ -6,6 +6,8 @@ export default defineConfig({
   reporter: [["list"], ["html", { outputFolder: "playwright-report", open: "never" }]],
   use: { baseURL: "http://localhost:5173", screenshot: "only-on-failure", trace: "on-first-retry" },
   timeout: 60_000,
+  // All specs share a single backend DB — run serially to avoid cross-test pollution.
+  workers: 1,
   webServer: [
     {
       // E2E runs fully local (no model escalation) for speed + determinism.

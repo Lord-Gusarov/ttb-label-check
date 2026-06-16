@@ -1,4 +1,4 @@
-import { test } from "@playwright/test";
+import { test, expect } from "@playwright/test";
 import fs from "fs";
 import path from "path";
 
@@ -31,15 +31,32 @@ test("capture all pages", async ({ page }) => {
     .waitFor({ timeout: 45_000 });
   await page.screenshot({ path: path.join(OUT, "02-submit-feedback.png"), fullPage: true });
 
-  // 3. Submitted banner
+  // 3. Submitted banner — intercept the POST to capture the application ID.
+  const submitResponse = page.waitForResponse(
+    (r) => /\/api\/applications$/.test(r.url()) && r.request().method() === "POST",
+  );
   await page.getByRole("button", { name: /^Submit/ }).click();
+  const submitJson = await (await submitResponse).json() as { id: string };
+  const appId = submitJson.id;
   await page.getByText("Submitted — now in the review queue").waitFor();
   await page.screenshot({ path: path.join(OUT, "03-submitted.png"), fullPage: true });
 
-  // 4. Queue
+  // 4. Queue — wait via API until the background worker finishes verifying, then navigate.
+  // The clean label lands in "Recommended to approve"; activate that tab to see it.
+  await expect.poll(
+    async () => {
+      const r = await page.request.get(`/api/applications/${appId}`);
+      const a = await r.json() as { verify_status: string };
+      return a.verify_status === "verified" || a.verify_status === "error";
+    },
+    { timeout: 45_000, intervals: [1_000] },
+  ).toBe(true);
   await page.goto("/queue");
   await page.waitForLoadState("networkidle");
-  await page.getByRole("link", { name: "OLD TOM DISTILLERY" }).first().waitFor({ timeout: 45_000 });
+  const approveTab = page.getByRole("tab", { name: /Recommended to approve/ });
+  await expect(approveTab).toBeVisible({ timeout: 15_000 });
+  await approveTab.click();
+  await page.getByRole("link", { name: "OLD TOM DISTILLERY" }).first().waitFor({ timeout: 15_000 });
   await page.screenshot({ path: path.join(OUT, "04-queue.png"), fullPage: true });
 
   // 5. Review page (open the item)

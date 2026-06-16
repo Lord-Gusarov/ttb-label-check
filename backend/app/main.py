@@ -8,6 +8,7 @@ assets served by the backend (no external CDN).
 from __future__ import annotations
 
 import logging
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -17,18 +18,29 @@ from fastapi.staticfiles import StaticFiles
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
-from app import __version__
+from app import __version__, worker
 from app.api.applications import router as applications_router
+from app.api.batches import router as batches_router
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s | %(message)s"
 )
 log = logging.getLogger("labelcheck")
 
+@asynccontextmanager
+async def _lifespan(_app: FastAPI):
+    worker.start()
+    try:
+        yield
+    finally:
+        worker.shutdown(wait=False)
+
+
 app = FastAPI(
     title="label-check",
     version=__version__,
     summary="TTB alcohol label verification — local-first, deterministic compliance.",
+    lifespan=_lifespan,
 )
 
 # In dev the Vite server runs on :5173 and proxies /api here; allow it.
@@ -47,6 +59,7 @@ def health() -> dict[str, str]:
 
 
 app.include_router(applications_router)
+app.include_router(batches_router)
 
 
 @app.exception_handler(Exception)

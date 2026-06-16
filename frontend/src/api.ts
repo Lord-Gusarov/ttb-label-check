@@ -1,4 +1,6 @@
-import type { AppDetail, AppSummary, Verification } from "./types";
+import type {
+  AppDetail, AppSummary, BatchProgress, BatchUploadResult, Verification,
+} from "./types";
 
 /** Parse a response, surfacing the backend's `detail` message on any non-OK status. */
 async function json<T>(r: Response): Promise<T> {
@@ -27,4 +29,15 @@ export async function decide(id: string, decision: string, note: string): Promis
 }
 export async function reverify(id: string): Promise<AppDetail> {
   return json(await fetch(`/api/applications/${id}/reverify`, { method: "POST" }));
+}
+
+export async function uploadBatch(manifest: File, images: File[]): Promise<BatchUploadResult> {
+  const fd = new FormData();
+  fd.append("manifest", manifest);
+  for (const im of images) fd.append("images", im);
+  return json(await fetch("/api/applications/batch", { method: "POST", body: fd }));
+}
+
+export async function getBatch(id: string): Promise<BatchProgress> {
+  return json(await fetch(`/api/batches/${id}`));
 }

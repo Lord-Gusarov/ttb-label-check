@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { type ReactNode } from "react";
 import type { Verdict } from "./types";
 
 // `cls` styles the chip; `dot` tints the status dot; `hex` is the on-image overlay color.
@@ -70,5 +70,58 @@ export function Field({ label, children }: { label: string; children: ReactNode 
 export function Card({ className = "", children }: { className?: string; children: ReactNode }) {
   return (
     <div className={`rounded-2xl border border-line bg-surface shadow-card ${className}`}>{children}</div>
+  );
+}
+
+/** Friendly submitted-at label from an epoch-seconds timestamp. */
+export function formatWhen(epochSeconds: number): string {
+  const d = new Date(epochSeconds * 1000);
+  return d.toLocaleString(undefined, {
+    month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+  });
+}
+
+export interface TabDef { key: string; label: string; count: number; }
+
+/** WCAG-AA tablist: roving focus, arrow-key navigation, aria-selected. */
+export function Tabs({ tabs, active, onChange, panelId }: {
+  tabs: TabDef[]; active: string; onChange: (key: string) => void; panelId: string;
+}) {
+  function onKey(e: React.KeyboardEvent, i: number) {
+    if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+    e.preventDefault();
+    const next = (i + (e.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length;
+    onChange(tabs[next].key);
+    // Roving tabindex: focus must follow selection on keyboard nav (focus() ignores the
+    // current tabIndex=-1). We move focus here, not in an effect, so initial render and
+    // mouse clicks don't steal focus.
+    document.getElementById(`${panelId}-tab-${tabs[next].key}`)?.focus();
+  }
+  return (
+    <div role="tablist" aria-label="Queue filters" className="flex flex-wrap gap-1 border-b border-line">
+      {tabs.map((t, i) => {
+        const selected = t.key === active;
+        return (
+          <button
+            key={t.key}
+            role="tab"
+            id={`${panelId}-tab-${t.key}`}
+            aria-selected={selected}
+            aria-controls={panelId}
+            tabIndex={selected ? 0 : -1}
+            onClick={() => onChange(t.key)}
+            onKeyDown={(e) => onKey(e, i)}
+            className={`-mb-px border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+              selected ? "border-brand text-brand" : "border-transparent text-muted hover:text-ink"
+            }`}
+          >
+            {t.label}
+            <span className={`ml-2 rounded-full px-2 py-0.5 text-xs ${
+              selected ? "bg-brand-soft text-brand" : "bg-surface-2 text-muted"
+            }`}>{t.count}</span>
+          </button>
+        );
+      })}
+    </div>
   );
 }

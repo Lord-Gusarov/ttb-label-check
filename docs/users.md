@@ -73,7 +73,7 @@ requirement, not an afterthought.
 
 ## Use cases (the flows)
 
-Concrete flows each role performs. Phase-1 cases are built; Phase-2 is designed, not yet built.
+Concrete flows each role performs — all built.
 
 **UC1 — Submit an application (check-then-confirm)** *(Applicant · built)*
 The Applicant enters the declared fields and uploads the label image, then **Checks** it: the
@@ -93,12 +93,12 @@ a closer look.
 From the review, the Agent records **Approve / Needs Correction / Reject**. → The application's
 status updates; the queue reflects it.
 
-**UC4 — Batch-process many applications** *(Agent · Phase 2)*
-The Agent selects multiple applications — a set, or a **range from N to M** — to verify together
-(the peak-season "an importer dumped 300" case). → Each is verified **independently** (one bad
-file can't sink the batch); the Agent gets a summary (counts of pass / needs-review / fail) and
-works the results item by item. *Open design point: selection by checkbox vs. by id range — to be
-settled when built.*
+**UC4 — Batch upload (many applications at once)** *(Applicant → Agent · built)*
+The Applicant uploads a **JSON manifest** (one entry per application) plus the label images it
+references — the peak-season "an importer dumped 300" case. → Each row is verified
+**independently** in the background (a bad row is skipped with a reason, never sinking the batch);
+a progress view streams results, and the verified items land in the Agent's tabbed queue (Needs
+attention / Recommended to approve / Verifying / Decided) to work item by item.
 
 **UC5 — Handle an imperfect image** *(Agent + system · built)*
 A label is shot at an angle, with glare, or at low resolution. → The affected checks resolve to
@@ -123,7 +123,7 @@ The roles and flows set the bar. We validate **these**, not abstract accuracy:
 | **UC2** warning | exact wording / ALL-CAPS / bold are caught (incl. title-case reject, non-bold) | warning + bold-detector golden tests |
 | **UC2** judgment | uncertainty → **NEEDS REVIEW**, not false PASS/FAIL; `STONE'S THROW` ≈ `Stone's Throw` passes | comparator tests; verdict distribution on the hard corpus |
 | **UC3** decide | a decision updates and persists the application's status | API decision tests; end-to-end approve flow |
-| **UC4** batch *(Phase 2)* | each item is verified independently; one failure can't sink the batch | per-item isolation tests (when built) |
+| **UC4** batch | each item is verified independently; a bad row is skipped, never sinks the batch | per-row skip tests + e2e batch flow |
 | **UC5** images | degraded inputs **flag** for review and never crash | hard-corpus run; error-handling tests; Playwright asserts zero console errors |
 | **All** | <5 s per label, **zero external calls**, usable by non-technical 50+ staff | latency report; local-first ADR 0001; accessible routed UI |
 

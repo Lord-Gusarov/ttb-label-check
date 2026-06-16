@@ -88,16 +88,32 @@ test("submit shows in-page feedback; agent approves from the queue", async ({ pa
   ).toBeVisible({ timeout: 45_000 });
 
   // --- Submitter: CONFIRM -> now it enters the queue --------------------------
+  // Intercept the submit POST to capture the returned application ID.
+  const submitResponse = page.waitForResponse((r) => /\/api\/applications$/.test(r.url()) && r.request().method() === "POST");
   await page.getByRole("button", { name: /^Submit/ }).click();
+  const submitJson = await (await submitResponse).json() as { id: string };
+  const submittedId = submitJson.id;
   await expect(page.getByText("Submitted — now in the review queue")).toBeVisible();
   expect(await appCount(page), "Confirm must create exactly one queue item").toBe(before + 1);
   await page.screenshot({ path: path.join(ART, "03-submitted.png"), fullPage: true });
 
   // --- Agent: open it from the queue and approve ------------------------------
+  // Wait via API until the background worker has verified the item (the review page
+  // does not auto-refresh, so we must arrive after verification is done).
+  await expect.poll(
+    async () => {
+      const r = await page.request.get(`/api/applications/${submittedId}`);
+      const a = await r.json() as { verify_status: string };
+      return a.verify_status === "verified" || a.verify_status === "error";
+    },
+    { timeout: 45_000, intervals: [1_000] },
+  ).toBe(true);
+  // Navigate via the queue page so the back-button test below has a valid history entry.
   await page.goto("/queue");
-  await page.getByRole("link", { name: "OLD TOM DISTILLERY" }).first().click();
-  await expect(page).toHaveURL(/\/queue\/[a-f0-9]+/);
-  await expect(page.getByText("Brand name")).toBeVisible({ timeout: 45_000 });
+  await expect(page.getByRole("tab").first()).toBeVisible({ timeout: 15_000 });
+  // Use the direct URL for the item — avoids tab-selection ambiguity in the queue listing.
+  await page.goto(`/queue/${submittedId}`);
+  await expect(page.getByText("Brand name")).toBeVisible({ timeout: 15_000 });
   await page.getByRole("button", { name: "Approve" }).click();
   await expect(page.getByText("Approved")).toBeVisible();
   await page.screenshot({ path: path.join(ART, "03-approved.png"), fullPage: true });
@@ -149,13 +165,38 @@ test("a clean label lands in 'Recommended to approve' and fast-clears in one cli
   await expect(
     page.getByText(/Looks good — ready to submit|Review these before submitting/).first(),
   ).toBeVisible({ timeout: 45_000 });
+  // Intercept the submit POST to capture the returned application ID.
+  const cleanSubmitResponse = page.waitForResponse(
+    (r) => /\/api\/applications$/.test(r.url()) && r.request().method() === "POST",
+  );
   await page.getByRole("button", { name: /^Submit/ }).click();
+  const cleanSubmitJson = await (await cleanSubmitResponse).json() as { id: string };
+  const cleanId = cleanSubmitJson.id;
   await expect(page.getByText("Submitted — now in the review queue")).toBeVisible();
 
-  // In the queue it's triaged under "Recommended to approve" and clears without opening it.
+  // Wait via the API until the background worker has finished verifying this specific item.
+  await expect.poll(
+    async () => {
+      const r = await page.request.get(`/api/applications/${cleanId}`);
+      const a = await r.json() as { verify_status: string };
+      return a.verify_status === "verified" || a.verify_status === "error";
+    },
+    { timeout: 45_000, intervals: [1_000] },
+  ).toBe(true);
+
+  // In the queue it's triaged under "Recommended to approve" — activate that tab first.
   await page.goto("/queue");
-  await expect(page.getByRole("heading", { name: /Recommended to approve/ })).toBeVisible();
+  // Wait for tabs to render, then switch to the "Recommended to approve" tab.
+  const approveTab = page.getByRole("tab", { name: /Recommended to approve/ });
+  await expect(approveTab).toBeVisible({ timeout: 15_000 });
+  await approveTab.click();
+  // The item is already verified, so it should appear immediately.
+  await expect(page.getByRole("link", { name: "OLD TOM DISTILLERY" }).first()).toBeVisible({ timeout: 15_000 });
   await page.screenshot({ path: path.join(ART, "05-queue-triage.png"), fullPage: true });
   await page.getByRole("button", { name: "Approve", exact: true }).first().click();
-  await expect(page.getByText("Approved").first()).toBeVisible();
+  // After fast-clear, the item moves to the "Decided" tab — switch there to confirm approval.
+  const decidedTab = page.getByRole("tab", { name: /Decided/ });
+  await expect(decidedTab).toBeVisible({ timeout: 10_000 });
+  await decidedTab.click();
+  await expect(page.getByText("Approved").first()).toBeVisible({ timeout: 10_000 });
 });

@@ -15,17 +15,24 @@ always makes the final call.
 
 ## What it does
 
-A submit → review → decide flow over a verification engine:
+A submit → review → decide flow over a verification engine, supporting both single
+applications and batch upload:
 
 1. **Submit (with a self-check)** — declared fields (brand, class/type, ABV, net contents,
    responsible party, country of origin) + one combined label image. Before anything is queued,
    the applicant clicks **Check label** and sees the *full* verification result — nothing is
    persisted yet — then chooses **Submit** (clean) or **Submit anyway** (flagged).
-2. **Verify** — read the label and check each mandatory element: the declared fields *match*,
+2. **Batch upload** — an applicant uploads a **JSON manifest** (an array of application objects,
+   each naming its image file) alongside the matching images in one request. Valid rows are
+   created and verified in the background; invalid rows are skipped with a per-row reason and
+   never abort the whole batch. A progress view polls until all items are verified, then links
+   to the review queue.
+3. **Verify** — read the label and check each mandatory element: the declared fields *match*,
    and the **government health warning** is present, ALL-CAPS, and bold. Each field gets a
    verdict (`PASS` / `NEEDS REVIEW`) with evidence — declared vs. found, and a bounding-box
    overlay on the label.
-3. **Decide** — an agent reviews the queue and records **Approve / Reject / Needs Correction**.
+4. **Decide** — an agent reviews the queue (tabbed by status: Needs attention / Recommended to
+   approve / Verifying / Decided) and records **Approve / Reject / Needs Correction**.
 
 **The tool advises; it never auto-rejects.** Anything it can't confidently clear is
 `NEEDS REVIEW` for a human — the design deliberately flags rather than fails.
@@ -45,6 +52,13 @@ outbound call. The harder minority escalate to a **pluggable semantic-validation
 rules decide). That tier is **decoupled**: the demo uses the OpenAI API over HTTPS, but it swaps
 cleanly to an in-boundary endpoint (Azure OpenAI in a FedRAMP enclave, or an internal vLLM) for
 production — see [Network security & deployment strategy](#network-security--deployment-strategy).
+
+Both single-submit and batch upload run through the **same `process_one` core** (declared
+fields + image bytes → pending application → enqueue). A small `ThreadPoolExecutor` worker runs
+the verification pipeline off the request path. `POST /api/applications/batch` accepts a manifest
+and images, validates per-row (bad rows skipped, batch never aborted), and returns a `batch_id`;
+`GET /api/batches/{id}` powers the polling progress view.
+
 Details + what we measured: [`docs/design-decisions.md`](docs/design-decisions.md).
 
 ## Stack
@@ -72,6 +86,37 @@ npm run dev
 
 Open **http://localhost:5173**, go to **Submit**, fill the fields, drop a label image (samples
 in `backend/tests/fixtures/labels/`), and **Check** → **Submit** → review it in the **Queue**.
+
+### Using batch upload
+
+Go to **Batch upload**, choose a **JSON manifest** plus the label images it references; the page
+reconciles filenames before you submit. Each array entry is one application:
+
+```json
+[
+  {
+    "commodity_type": "distilled_spirits",
+    "brand_name": "OLD TOM DISTILLERY",
+    "class_type": "Kentucky Straight Bourbon Whiskey",
+    "alcohol_content": "45% Alc./Vol. (90 Proof)",
+    "net_contents": "750 mL",
+    "responsible_party": "Bottled by Old Tom Distillery, Bardstown, KY",
+    "image": "old_tom_clean.png"
+  }
+]
+```
+
+- **Required per row:** `commodity_type` (`distilled_spirits` | `wine` | `malt_beverage`),
+  `brand_name`, `class_type`, `alcohol_content`, `net_contents`, and `image` — which must match
+  the filename of one of the images you upload.
+- **Optional:** `responsible_party`; and `source` (`domestic` | `imported`) — when `imported`,
+  add `country_of_origin`.
+- Invalid rows are **skipped with a reason** (never aborting the batch); valid rows verify in the
+  background and stream into the tabbed **Queue**. Up to 500 rows per upload.
+
+A ready-to-run manifest is at [`docs/examples/batch-manifest.example.json`](docs/examples/batch-manifest.example.json):
+select it together with `old_tom_clean.png` and `old_tom_rich_circular.png` from
+`backend/tests/fixtures/labels/` to try the full flow.
 
 ## Run as one container
 
@@ -141,6 +186,19 @@ Azure environment inside the agency boundary.
 ## Scope & limitations
 
 A prototype, intentionally bounded — see [`docs/design-decisions.md`](docs/design-decisions.md)
-for the full list and rationale. In short: one combined image per application; three commodities
-(distilled spirits seeded deepest; wine/malt structural); single-application flow (batch is
-designed-for but not built); no COLA integration, no auth, nothing sensitive stored.
+for the full list and rationale. In short:
+
+- **One combined image per application** (front/back/side stacked into one file).
+- **Three commodities**: distilled spirits (seeded deepest), wine and malt beverage (wired structurally).
+- **Batch manifest format**: JSON only (CSV deferred — fields like `responsible_party` contain commas
+  and would need quoting rules; JSON is unambiguous for arbitrarily complex values).
+- **Batch images**: plain multi-file upload (no zip archive).
+- **Batch size**: capped at 500 items per request — well above the stakeholder's 200–300 scenario
+  on a single container; not designed for tens of thousands.
+- **Background worker**: in-process `ThreadPoolExecutor` (two threads by default, tunable via
+  `$BATCH_WORKERS`). Fine for a single-container prototype. A production deployment would use a
+  durable task queue and external workers so in-flight jobs survive restarts; the startup
+  re-enqueue catches stranded `pending`/`verifying` items on the current deployment.
+- **No per-batch filter on the main queue**: items land in the shared tabbed queue; there is no
+  "show only this batch" view.
+- No COLA integration, no auth, nothing sensitive stored.
