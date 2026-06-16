@@ -138,11 +138,46 @@ loose presence check, and what it can't clear escalates / goes to a human.
 - **The warning text is the fixed federal statement**; "exact" is checked at the word + numbering
   + caps/bold level locally (see the limit above).
 
+## Batch upload: design choices and scope
+
+The batch feature lets an applicant submit a JSON manifest (an array of application payloads,
+each naming its image file) alongside the matching images. Valid rows are created and verified
+in the background; invalid rows are skipped with a per-row reason and never abort the whole
+batch.
+
+**Why JSON for the manifest, not CSV?**
+Declared fields like `responsible_party` contain commas and would need quoting rules; commodity
+labels and class/type names are arbitrary text strings that would need escaping. JSON is
+unambiguous for complex field values and requires no quoting convention. A CSV importer could
+be added later, but requires a quoting/encoding spec and a more involved validation path.
+Deferred.
+
+**Why a plain multi-file upload, not a zip?**
+Zip adds server-side extraction, traversal-path validation, and a second content-type path.
+A browser's native `<input type="file" multiple>` is sufficient for the 200–300 file scenario;
+the server receives named file entries directly. Zip would be worth revisiting for very large
+batches where a single upload stream is preferable.
+
+**Why an in-process ThreadPoolExecutor, not a durable queue?**
+For a single-container prototype serving the stakeholder's 200–300 item batches, a small
+in-process pool (two threads by default; tunable via `$BATCH_WORKERS`) is the simplest thing
+that works. It has no external dependencies and keeps the deployment to one container. The
+trade-off: in-flight jobs do not survive a process restart (the startup re-enqueue recovers
+`pending`/`verifying` items from the store, but any task the executor was actively running at
+shutdown time must re-run). A production deployment would replace this with a durable task
+queue (e.g. Celery + Redis, or a managed service) and external workers — the interface is one
+function (`enqueue(app_id)`) and one module boundary, so the swap is localized.
+
+**Batch size cap**: 500 items per request — an unauthenticated-endpoint guard, comfortably above
+the stakeholder's scenario on a single container. It is not designed for tens of thousands of
+items.
+
+**No per-batch filter on the main queue**: batch items land in the shared tabbed queue (Needs
+attention / Recommended to approve / Verifying / Decided). A "show only batch X" view is a
+natural next step but was out of scope for the prototype.
+
 ## Trade-offs & known limitations (future work)
 
-- **Batch (200–300 labels) is designed-for, not built.** The agent side is already a queue, each
-  application is an independent stateless unit, so batch is additive (bulk-create + summary), not
-  a rewrite — but this prototype ships the single-application path.
 - **Warning punctuation** is not verified by the local tier (see above); enabling the model tier
   and wiring a "warning exactness pass" would close it, at the cost of a model call per warning.
 - **Responsible-party** matching is intentionally loose; the hardest cases (importer-vs-producer,
