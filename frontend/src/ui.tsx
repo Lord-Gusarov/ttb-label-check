@@ -93,6 +93,10 @@ export function Tabs({ tabs, active, onChange }: {
     e.preventDefault();
     const next = (i + (e.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length;
     onChange(tabs[next].key);
+    // Roving tabindex: focus must follow selection on keyboard nav (focus() ignores the
+    // current tabIndex=-1). We move focus here, not in an effect, so initial render and
+    // mouse clicks don't steal focus.
+    document.getElementById(`${base}-${tabs[next].key}`)?.focus();
   }
   return (
     <div role="tablist" aria-label="Queue filters" className="flex flex-wrap gap-1 border-b border-line">
