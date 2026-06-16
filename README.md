@@ -11,7 +11,7 @@ always makes the final call.
 - **Approach, tools & assumptions:** [`docs/design-decisions.md`](docs/design-decisions.md)
 - **Architecture:** [`ARCHITECTURE.md`](ARCHITECTURE.md)
 - **Reader bake-off (the measured engine choice):** [`docs/evaluation.md`](docs/evaluation.md)
-- **Users & flows:** [`docs/users.md`](docs/users.md) · **ADR:** [`docs/adr/`](docs/adr/)
+- **Users & flows:** [`docs/users.md`](docs/users.md)
 
 ## What it does
 

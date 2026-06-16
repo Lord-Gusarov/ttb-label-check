@@ -80,7 +80,7 @@ overturned, and that's the point:
 - **The local VLM was the accuracy ceiling — and still cut.** Florence-2 scored highest (96%
   field accuracy) but ran ~5.7 s/label on CPU, over the 5 s budget, and never activated as a
   fallback in practice. We removed it rather than ship dormant, dependency-heavy code; the
-  benchmark is retained for the record (see [`adr/0001`](adr/0001-pluggable-reading-layer.md)).
+  benchmark is retained for the record (see [`docs/evaluation.md`](evaluation.md)).
   A GPU deployment would revisit it.
 - **Ground truth itself was verified, not trusted.** Our eval golden set was first transcribed
   by reading label images; cross-checking surfaced real transcription errors, so the golden set

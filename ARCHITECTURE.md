@@ -78,8 +78,7 @@ anchoring the warning re-read).
 - `easyocr_reader.py`, `paddle_reader.py` — optional bake-off entrants (heavier; opt-in extras).
 - `build_reader()` returns the configured reader (`LABELCHECK_READER`, default `rapidocr`).
 
-The engine choice is **measured, not assumed** — see [`docs/evaluation.md`](docs/evaluation.md)
-and [`docs/adr/0001-pluggable-reading-layer.md`](docs/adr/0001-pluggable-reading-layer.md).
+The engine choice is **measured, not assumed** — see [`docs/evaluation.md`](docs/evaluation.md).
 
 ### Rules engine — `app/rules/`
 - `rulesets.py` — a declarative **`FieldPolicy` table per commodity** (distilled spirits, wine,
@@ -140,7 +139,7 @@ aborting the batch; valid rows route through the **same `process_one` core** as 
 and are verified by a background `ThreadPoolExecutor` worker (`app/worker.py`) — fail-safe, with
 startup re-enqueue of stranded items. `GET /api/batches/{id}` returns derived progress counts for
 a polling view, and items stream into the tabbed queue. So single submit is just **a batch of
-one**. See [`docs/specs/2026-06-16-batch-upload-design.md`](docs/specs/2026-06-16-batch-upload-design.md).
+one**.
 
 ## Evaluation harnesses — `eval/`
 Separate from the app: the reader bake-off, a synthetic label generator (exact ground truth),
