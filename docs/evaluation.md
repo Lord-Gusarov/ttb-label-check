@@ -4,6 +4,10 @@ Empirical comparison of OCR engines on the test corpus — clean labels plus rea
 
 > Corpus is synthetic but models real-world label variation; step 8 can add real / AI-generated photographed labels by dropping them in `corpus/`.
 
+> **Note (2026-06-15):** the `vlm` (Florence-2) and `tesseract` rows are retained as bake-off
+> evidence, but those adapters are **no longer in the codebase** — `vlm` was over the 5 s budget
+> on CPU and never activated; the active reader is `rapidocr`. See `docs/adr/0001` for the removal.
+
 ## Summary
 
 | Engine | Field accuracy | p50 latency | p95 latency |

@@ -2,27 +2,35 @@
 @import "@fontsource-variable/public-sans";
 @import "@fontsource-variable/source-serif-4";
 
-/* "Federal Refined" — Public Sans (the U.S. federal typeface) + Source Serif 4 for
-   display; warm paper, ink, and a deep federal blue. Calm, authoritative, legible
-   (the 73-year-old benchmark). Fonts are vendored — no CDN, honoring no-egress. */
+/* "Modern Federal" — Public Sans (the U.S. federal typeface) for UI + Source Serif 4 for
+   editorial display. A cool paper canvas, crisp white surfaces, deep federal blue, and
+   semantic status colors all tuned to clear WCAG AA (see scripts/contrast-check.mjs).
+   Fonts are vendored — no CDN, honoring the project's no-egress posture. */
 @theme {
   --font-sans: "Public Sans Variable", system-ui, sans-serif;
   --font-serif: "Source Serif 4 Variable", Georgia, serif;
 
-  --color-paper: #f6f4ef;
-  --color-surface: #fdfdfb;
-  --color-ink: #1b2430;
-  --color-muted: #5b6675;
-  --color-line: #e5e1d8;
-  --color-brand: #1a4480;
-  --color-brand-soft: #eaf0f8;
+  --color-paper: #eef1f5;        /* page canvas + filled insets */
+  --color-surface: #ffffff;      /* cards */
+  --color-surface-2: #f6f8fb;    /* table heads, subtle insets */
+  --color-ink: #0f1729;          /* primary text — 16:1 on canvas */
+  --color-muted: #515c6e;        /* secondary text — AA on canvas + white */
+  --color-faint: #69727f;        /* tertiary — AA-large only */
+  --color-line: #d7dce5;         /* hairline borders */
+  --color-line-strong: #c2c9d6;  /* emphasized borders */
 
-  --color-pass: #1f7a4d;
-  --color-pass-soft: #e7f4ec;
-  --color-flag: #a36400;
-  --color-flag-soft: #fbf1dd;
-  --color-fail: #b42318;
-  --color-fail-soft: #fbeae8;
+  --color-brand: #1b3a6b;        /* deep federal blue */
+  --color-brand-soft: #e7eefb;
+
+  --color-pass: #15663f;
+  --color-pass-soft: #e3f3ea;
+  --color-flag: #8a5200;
+  --color-flag-soft: #fbf0d6;
+  --color-fail: #b21f12;
+  --color-fail-soft: #fbe8e6;
+
+  --shadow-card: 0 1px 2px rgba(15, 23, 41, 0.04), 0 6px 20px -12px rgba(15, 23, 41, 0.18);
+  --shadow-lift: 0 2px 4px rgba(15, 23, 41, 0.05), 0 16px 40px -18px rgba(15, 23, 41, 0.28);
 }
 
 :root {
@@ -37,20 +45,64 @@ body {
   margin: 0;
   font-family: var(--font-sans);
   background-color: var(--color-paper);
-  /* faint engraved-paper texture for warmth/depth */
-  background-image: radial-gradient(rgba(27, 36, 48, 0.025) 1px, transparent 1px);
-  background-size: 22px 22px;
+  /* layered atmosphere: a faint dot grid + a soft top glow for depth */
+  background-image:
+    radial-gradient(rgba(27, 58, 107, 0.04) 1px, transparent 1px),
+    radial-gradient(120% 80% at 100% 0%, rgba(27, 58, 107, 0.05), transparent 60%);
+  background-size: 24px 24px, 100% 100%;
+  background-attachment: fixed;
   color: var(--color-ink);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
+
+/* Visible, high-contrast keyboard focus everywhere. */
 :focus-visible {
   outline: 2px solid var(--color-brand);
   outline-offset: 2px;
+  border-radius: 4px;
 }
 
+/* Skip link — first tab stop for keyboard users. */
+.skip-link {
+  position: fixed;
+  left: 1rem;
+  top: -3rem;
+  z-index: 50;
+  background: var(--color-brand);
+  color: #fff;
+  padding: 0.5rem 0.9rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+  transition: top 0.18s ease;
+}
+.skip-link:focus {
+  top: 1rem;
+}
+
+/* Staggered page-load reveal. */
 @keyframes rise {
-  from { opacity: 0; transform: translateY(6px); }
+  from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: none; }
 }
-.rise { animation: rise 0.35s ease both; }
+.rise { animation: rise 0.4s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.stagger > * { animation: rise 0.45s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.stagger > *:nth-child(1) { animation-delay: 0.02s; }
+.stagger > *:nth-child(2) { animation-delay: 0.06s; }
+.stagger > *:nth-child(3) { animation-delay: 0.10s; }
+.stagger > *:nth-child(4) { animation-delay: 0.14s; }
+.stagger > *:nth-child(5) { animation-delay: 0.18s; }
+.stagger > *:nth-child(6) { animation-delay: 0.22s; }
+.stagger > *:nth-child(7) { animation-delay: 0.26s; }
+.stagger > *:nth-child(8) { animation-delay: 0.30s; }
+
+/* Honor reduced-motion: no transforms, no transitions, instant reveals. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-delay: 0ms !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

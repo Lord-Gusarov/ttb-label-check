@@ -1,8 +1,8 @@
 """FastAPI entrypoint.
 
 Serves the JSON API under /api and, in production, the built React frontend
-(static files) for everything else — so the whole app ships as one container
-with no external CDN (matches the local-first / no-egress constraint).
+(static files) for everything else — so the whole app ships as one container,
+assets served by the backend (no external CDN).
 """
 
 from __future__ import annotations

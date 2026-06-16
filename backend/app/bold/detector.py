@@ -26,7 +26,7 @@ _BOLD_RATIO = 1.15      # prefix stroke width must exceed body by this factor to
                         # (1.15, not 1.20: genuinely-bold clean prefixes measure ~1.16x; flagging
                         #  those "unclear" forced needless review when the VLM tiebreak is off)
 _NOT_BOLD_RATIO = 1.00  # at/below this (with a confident measurement) reads as NOT bold
-_MIN_GLYPH_H = 14       # below this prefix height, upscale + CLAHE before measuring
+_TARGET_GLYPH_H = 28    # upscale the band so the smallest measured glyph reaches ~this height
 _BODY_BAND = 8          # search body words within this many prefix-heights below the prefix
 
 
@@ -51,24 +51,16 @@ def _stroke_width(gray_crop: np.ndarray) -> float | None:
     return 2.0 * float(ridge.mean())
 
 
-def _prep(crop: np.ndarray, glyph_h: int) -> np.ndarray:
-    """Upscale + contrast-normalize tiny/low-contrast crops so stroke width is measurable."""
-    if glyph_h >= _MIN_GLYPH_H or crop.size == 0:
-        return crop
-    scale = min(6, max(1, round(_MIN_GLYPH_H / max(1, glyph_h)) + 1))
-    up = cv2.resize(crop, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
-    if up.ndim == 3:
-        up = cv2.cvtColor(up, cv2.COLOR_BGR2GRAY)
-    return cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8)).apply(up)
-
-
-def _mean_stroke(gray: np.ndarray, boxes: list[WordBox]) -> float | None:
-    """Mean stroke width across the given word boxes (each crop prepped if tiny)."""
+def _mean_stroke(gray: np.ndarray, boxes: list[WordBox], scale: int = 1) -> float | None:
+    """Mean stroke width across word boxes, measured on an ALREADY-upscaled `gray` (box coords
+    multiplied by `scale`). Upscaling is applied uniformly to the whole image upstream, so prefix
+    and body are measured at the SAME resolution — the bold ratio stays scale-invariant and is
+    not biased between ALL-CAPS (tall) prefix glyphs and lowercase (short) body glyphs."""
     widths: list[float] = []
     for b in boxes:
-        x1, y1, x2, y2 = b.bbox
+        x1, y1, x2, y2 = (c * scale for c in b.bbox)
         crop = gray[max(0, y1):y2, max(0, x1):x2]
-        sw = _stroke_width(_prep(crop, y2 - y1))
+        sw = _stroke_width(crop)
         if sw is not None:
             widths.append(sw)
     return float(np.mean(widths)) if widths else None
@@ -101,7 +93,20 @@ def detect_warning_bold(image: np.ndarray, words: list[WordBox] | None) -> BoldF
     if not body:
         return BoldFinding(None, None, "no body text near the warning prefix to compare against")
 
-    pw, bw = _mean_stroke(gray, prefix), _mean_stroke(gray, body)
+    # Upscale the whole image by ONE factor so the smallest measured glyph reaches a size where
+    # distance-transform stroke width is precise (it's noisy on small glyphs — the same prefix
+    # reads ~1.14x at native scale but ~1.16x upscaled). The SAME factor applies to prefix and
+    # body, so the ratio is unbiased: a genuinely-bold clean label clears the check on the base
+    # read (no OCR re-read), while equal-weight text still measures ~1.0x.
+    heights = [b.bbox[3] - b.bbox[1] for b in (*prefix, *body) if b.bbox[3] > b.bbox[1]]
+    min_h = min(heights) if heights else _TARGET_GLYPH_H
+    scale = max(1, min(6, -(-_TARGET_GLYPH_H // max(1, min_h))))  # ceil(target / min_h), capped at 6
+    measure = gray
+    if scale > 1:
+        measure = cv2.resize(gray, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
+        measure = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8)).apply(measure)
+
+    pw, bw = _mean_stroke(measure, prefix, scale), _mean_stroke(measure, body, scale)
     if pw is None or bw is None or bw <= 0:
         return BoldFinding(None, None, "could not measure stroke width")
 
