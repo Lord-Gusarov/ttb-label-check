@@ -148,13 +148,18 @@ def verify_label(
     read = _timed("ocr", lambda: reader.extract(image))
     field_result = evaluate(commodity, application, read.text)
 
-    # Tier 1 — anchored re-read with scale search (cheap; clears clean + most labels).
-    region = _timed(
-        "tier1_reread",
-        lambda: _safe(lambda: reread_warning(image, read.words, reader), "tier-1 re-read"),
-    )
-    warning_fields = evaluate_warning(image, read.text, read.words, region)
+    # Government-warning checks on the base read first. The anchored re-read (extra OCR passes
+    # at several scales) is the expensive Tier-1 step, so we only pay it when the base read did
+    # NOT already clear the warning — which is the common case for clean labels.
+    warning_fields = evaluate_warning(image, read.text, read.words, None)
     tier = 1
+    if not all(f.verdict is Verdict.PASS for f in warning_fields):
+        region = _timed(
+            "tier1_reread",
+            lambda: _safe(lambda: reread_warning(image, read.words, reader), "tier-1 re-read"),
+        )
+        if region is not None:
+            warning_fields = evaluate_warning(image, read.text, read.words, region)
 
     fields = list(field_result.fields) + warning_fields
 
