@@ -44,11 +44,16 @@ _LABEL_PROMPT = (
     "Read this U.S. alcohol label and transcribe these fields EXACTLY as printed — do not "
     "paraphrase, infer, or correct anything. Return ONLY JSON with keys: brand_name, "
     "class_type, alcohol_content, net_contents, responsible_party, country_of_origin, "
-    "government_warning. For responsible_party, transcribe the bottler/producer name & address "
-    "statement (e.g. 'Bottled by ACME, City, ST'); for country_of_origin, the origin statement "
-    "if any (e.g. 'Product of France'). For government_warning, transcribe the full Government "
-    "Warning paragraph verbatim. Use an empty string for any field not present or not readable."
+    "government_warning, government_warning_bold. For responsible_party, transcribe the "
+    "bottler/producer name & address statement (e.g. 'Bottled by ACME, City, ST'); for "
+    "country_of_origin, the origin statement if any (e.g. 'Product of France'). For "
+    "government_warning, transcribe the full Government Warning paragraph verbatim. For "
+    "government_warning_bold, judge whether the phrase 'GOVERNMENT WARNING' is printed in bold "
+    "(a visibly heavier stroke than the body text that follows) — answer exactly 'yes', 'no', "
+    "or 'unclear'. Use an empty string for any text field not present or not readable."
 )
+#: The model's bold verdict rides on the same label read (no separate call); not a text field.
+_BOLD_KEY = "government_warning_bold"
 
 
 def _read_key() -> str | None:
@@ -88,37 +93,13 @@ def _chat_json(image: np.ndarray, model: str, prompt: str) -> dict | None:
         return None
 
 
-_BOLD_PROMPT = (
-    "Look ONLY at this cropped U.S. alcohol-label warning. Is the phrase 'GOVERNMENT WARNING' "
-    "printed in bold (a visibly heavier stroke) relative to the body text that follows it? "
-    "Do not guess; if you cannot tell, say unclear. Return ONLY JSON: {\"bold\": \"yes\"|\"no\"|\"unclear\"}."
-)
-
-
-def judge_warning_bold(crop: np.ndarray) -> str | None:
-    """Best-effort VLM adjudication of prefix bold -> 'yes'|'no'|'unclear', or None when
-    escalation is disabled/unavailable. Never raises (fail-safe)."""
-    spec = os.environ.get("WARNING_ESCALATION_MODEL", _DEFAULT_SPEC).strip()
-    if spec.lower() in _DISABLED:
-        return None
-    try:
-        provider, _, model = spec.partition(":")
-        if provider != "openai":
-            logger.warning("unknown escalation provider %r — skipping bold judge", provider)
-            return None
-        data = _chat_json(crop, model or "gpt-5.4-mini", _BOLD_PROMPT)
-        if not data:
-            return None
-        val = str(data.get("bold", "")).strip().lower()
-        return val if val in {"yes", "no", "unclear"} else None
-    except Exception:  # noqa: BLE001 — must degrade, never crash
-        logger.warning("bold adjudication failed; ignoring", exc_info=True)
-        return None
-
-
 def _openai_read_label(image: np.ndarray, model: str) -> dict[str, str] | None:
     data = _chat_json(image, model, _LABEL_PROMPT)
-    return {k: str(data.get(k, "") or "") for k in FIELDS} if data else None
+    if not data:
+        return None
+    out = {k: str(data.get(k, "") or "") for k in FIELDS}
+    out[_BOLD_KEY] = str(data.get(_BOLD_KEY, "") or "").strip().lower()  # 'yes'|'no'|'unclear'|''
+    return out
 
 
 def escalate_label_read(image: np.ndarray) -> dict[str, str] | None:

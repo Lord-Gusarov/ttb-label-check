@@ -17,7 +17,6 @@ import re
 import numpy as np
 
 from app.bold.detector import detect_warning_bold
-from app.escalation import judge_warning_bold
 from app.readers.types import WordBox
 from app.rules.result import FieldResult, Verdict
 from app.rules.spec.government_warning import CANONICAL_WARNING, missing_canonical_tokens
@@ -95,27 +94,37 @@ def check_warning_caps(raw_text: str) -> FieldResult:
     )
 
 
-def check_warning_bold(
-    image: np.ndarray, words: list[WordBox] | None, *, tiebreak: bool = False
-) -> FieldResult:
-    """Bold via relative stroke width (local, OCR-free). When the local measure is UNCLEAR and
-    ``tiebreak`` is set, a fail-safe model adjudicates ONCE on the (upscaled) warning crop — the
-    caller enables this only on the best crop so the model call isn't repeated across passes.
-    Never a hard FAIL: confident bold -> PASS, else NEEDS_REVIEW."""
+def check_warning_bold(image: np.ndarray, words: list[WordBox] | None) -> FieldResult:
+    """Bold via relative stroke width (local, OCR-free). Confident bold -> PASS, else
+    NEEDS_REVIEW. The unclear cases are adjudicated by the Tier-2 model on the SAME label read
+    (see `apply_model_bold`) — no separate model call. Never a hard FAIL."""
     finding = detect_warning_bold(image, words)
     verdict = Verdict.PASS if finding.is_bold is True else Verdict.NEEDS_REVIEW
     found = f"{finding.ratio:.2f}x body" if finding.ratio is not None else None
-    detail = finding.detail
-    if finding.is_bold is None and tiebreak:  # unclear -> model tiebreak (fail-safe; None when off)
-        vote = judge_warning_bold(image)
-        if vote == "yes":
-            verdict, detail = Verdict.PASS, f"{detail}; model confirmed bold"
-        elif vote in {"no", "unclear"}:
-            detail = f"{detail}; model bold={vote}"
     return FieldResult(
         "warning_bold", "Warning prefix bold", verdict,
-        expected="bold", found=found, detail=detail,
+        expected="bold", found=found, detail=finding.detail,
     )
+
+
+def apply_model_bold(warning_fields: list[FieldResult], vote: str) -> list[FieldResult]:
+    """Fold the model's bold judgment (from the label re-read) into the warning_bold result.
+    'yes' -> PASS; 'no'/'unclear' leave the local NEEDS_REVIEW for a human. One read, no extra call."""
+    vote = (vote or "").strip().lower()
+    if vote not in {"yes", "no", "unclear"}:
+        return warning_fields
+    out: list[FieldResult] = []
+    for f in warning_fields:
+        if f.field != "warning_bold":
+            out.append(f)
+            continue
+        if vote == "yes":
+            out.append(FieldResult("warning_bold", f.label, Verdict.PASS, expected="bold",
+                                   found=f.found, detail=f"{f.detail}; model confirmed bold"))
+        else:
+            out.append(FieldResult("warning_bold", f.label, Verdict.NEEDS_REVIEW, expected="bold",
+                                   found=f.found, detail=f"{f.detail}; model bold={vote}"))
+    return out
 
 
 def evaluate_warning(
@@ -123,23 +132,20 @@ def evaluate_warning(
     text: str,
     words: list[WordBox],
     region: WarningRegion | None = None,
-    *,
-    bold_tiebreak: bool = False,
 ) -> list[FieldResult]:
     """All three warning checks. When a second-pass `region` is supplied (anchored crop,
     upscaled, re-OCR'd), the checks run on that cleaner output: text/caps on the re-read
     text, bold on the upscaled crop + its boxes. Otherwise they fall back to the primary
-    full-image read. `bold_tiebreak` enables the one-shot model bold adjudication (the caller
-    sets it only on the best/upscaled crop so it runs at most once per verification).
+    full-image read.
     """
     if region is not None:
         return [
             check_warning_text(region.text),
             check_warning_caps(region.text),
-            check_warning_bold(region.crop, region.words, tiebreak=bold_tiebreak),
+            check_warning_bold(region.crop, region.words),
         ]
     return [
         check_warning_text(text),
         check_warning_caps(text),
-        check_warning_bold(image, words, tiebreak=bold_tiebreak),
+        check_warning_bold(image, words),
     ]

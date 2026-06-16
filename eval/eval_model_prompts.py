@@ -10,7 +10,7 @@ Sets:
 Checks:
   1. _LABEL_PROMPT per-field READ accuracy (token recall) over A and B
   2. _LABEL_PROMPT no-fabrication: omit a field from the image -> model must not invent it
-  3. _BOLD_PROMPT: bold vs not-bold -> no false-yes
+  3. bold judgment (rides on the label read): bold vs not-bold -> no false-yes
   4. precision: a warning with a dropped legal word -> model must NOT re-insert it
 
 Needs a key ($OPENAI_API_KEY or ~/.oai_key). Override model via LLM_EVAL_MODEL.
@@ -108,7 +108,7 @@ def main() -> None:
 
     # 3. bold prompt.
     bold = run_bold_slice()
-    print(f"\n-- _BOLD_PROMPT: {bold['correct']}/{bold['n']} correct, false-yes={bold['false_yes']} (want 0) --")
+    print(f"\n-- bold (via label read): {bold['correct']}/{bold['n']} correct, false-yes={bold['false_yes']} (want 0) --")
 
     # 4. precision: a warning missing a legal word -> model must not re-insert it.
     print("\n-- precision (_WARNING_PROMPT): dropped legal word must NOT be re-inserted --")

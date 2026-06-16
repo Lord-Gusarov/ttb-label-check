@@ -38,7 +38,7 @@ from app.escalation import escalate_label_read
 from app.readers import ReadResult, build_reader
 from app.rules import LabelResult, evaluate
 from app.rules.result import FieldResult, Verdict, severity
-from app.rules.warning import evaluate_warning
+from app.rules.warning import apply_model_bold, evaluate_warning
 from app.rules.warning_region import deskew_reread, reread_warning, vertical_reread
 
 logger = logging.getLogger(__name__)
@@ -119,6 +119,8 @@ def _model_field_results(
     )
     field_results = list(evaluate(commodity, application, text).fields)
     warning_results = list(evaluate_warning(image, model.get("government_warning", ""), warning_words or [], None))
+    # The same model read also judged bold — fold it in (no separate bold call).
+    warning_results = apply_model_bold(warning_results, model.get("government_warning_bold", ""))
     return field_results + warning_results
 
 
@@ -159,9 +161,7 @@ def verify_label(
             lambda: _safe(lambda: reread_warning(image, read.words, reader), "tier-1 re-read"),
         )
         if region is not None:
-            # The upscaled crop is the best image of the prefix, so the one-shot model bold
-            # tiebreak (when local stroke-width is unclear) runs HERE — once — not on every pass.
-            warning_fields = evaluate_warning(image, read.text, read.words, region, bold_tiebreak=True)
+            warning_fields = evaluate_warning(image, read.text, read.words, region)
 
     fields = list(field_result.fields) + warning_fields
 

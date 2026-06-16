@@ -1,4 +1,4 @@
-"""Gated live eval of the two production model prompts (_LABEL_PROMPT, _BOLD_PROMPT).
+"""Gated live eval of the production model read (_LABEL_PROMPT — transcription + bold judgment).
 
 Makes REAL OpenAI calls — opt-in only: set RUN_LLM_EVAL=1 (and have a key). Skipped by
 default so the normal suite stays offline/deterministic. Asserts the safety invariants the

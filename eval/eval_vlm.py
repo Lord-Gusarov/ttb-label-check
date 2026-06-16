@@ -14,7 +14,7 @@ import re
 import cv2
 import numpy as np
 
-from app.escalation import _chat_json, escalate_label_read, judge_warning_bold
+from app.escalation import _chat_json, escalate_label_read
 from app.rules.spec.government_warning import CANONICAL_WARNING
 from degrade import render_label, render_warning
 
@@ -61,17 +61,26 @@ def transcribe_warning(crop: np.ndarray, model: str = "gpt-5.4-mini") -> str:
     return str((data or {}).get("government_warning", ""))
 
 
-def _prefix_crop(thickness: int) -> np.ndarray:
-    img = np.full((120, 600, 3), 255, dtype=np.uint8)
-    cv2.putText(img, "GOVERNMENT WARNING", (15, 45), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 0), thickness, cv2.LINE_AA)
-    cv2.putText(img, "according to the surgeon general consumption", (15, 95),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 1, cv2.LINE_AA)
+def _bold_label(thickness: int) -> np.ndarray:
+    """A minimal full label whose 'GOVERNMENT WARNING' prefix is drawn at `thickness` (5=bold,
+    1=not) so the PRODUCTION label-read's bold judgment can be scored — bold now rides on the
+    same label-read call, so there is no separate bold prompt to test."""
+    img = np.full((420, 820, 3), 255, dtype=np.uint8)
+    f = cv2.FONT_HERSHEY_SIMPLEX
+    cv2.putText(img, "OLD TOM DISTILLERY", (40, 60), f, 1.0, (0, 0, 0), 2, cv2.LINE_AA)
+    cv2.putText(img, "40% ALC/VOL  750 mL", (40, 110), f, 0.7, (0, 0, 0), 1, cv2.LINE_AA)
+    cv2.putText(img, "GOVERNMENT WARNING:", (40, 210), f, 0.8, (0, 0, 0), thickness, cv2.LINE_AA)
+    cv2.putText(img, "(1) According to the Surgeon General, women should not drink", (40, 250),
+                f, 0.55, (0, 0, 0), 1, cv2.LINE_AA)
     return img
 
 
 def run_bold_slice() -> dict[str, int]:
-    cases = [(judge_warning_bold(_prefix_crop(5)), True), (judge_warning_bold(_prefix_crop(1)), False)]
-    return bold_accuracy(cases)
+    """Score the production label-read's bold judgment: a bold prefix should vote 'yes', a
+    not-bold one should not. `false_yes` (calling not-bold "bold") is the dangerous error."""
+    def vote(thick: int) -> str:
+        return (escalate_label_read(_bold_label(thick)) or {}).get("government_warning_bold", "")
+    return bold_accuracy([(vote(5), True), (vote(1), False)])
 
 
 def label_field_report(result: dict, values: dict, omitted: str) -> dict:
