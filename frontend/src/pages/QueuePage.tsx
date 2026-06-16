@@ -13,24 +13,40 @@ const COMMODITY: Record<string, string> = {
 export function QueuePage() {
   const [apps, setApps] = useState<AppSummary[] | null>(null);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
 
   function refresh() {
-    listApplications().then(setApps).catch(() => setApps([]));
+    listApplications()
+      .then((a) => { setApps(a); setError(null); })
+      .catch((e) => setError(String(e)));
   }
   useEffect(refresh, []);
 
   async function approve(ids: string[]) {
     setBusy(true);
+    setError(null);
     try {
       for (const id of ids) await decide(id, "approved", "");
       refresh();
+    } catch (e) {
+      setError(String(e));
     } finally {
       setBusy(false);
     }
   }
 
-  if (apps === null) return <p className="mt-8 text-muted">Loading…</p>;
+  // Distinguish "couldn't load" from "nothing here": only an actual fetch failure
+  // (apps never arrived) shows the error screen; a successful empty load shows EmptyState.
+  if (apps === null)
+    return error ? (
+      <Card className="mt-8 border-fail/30 p-8 text-center">
+        <p role="alert" className="font-medium text-fail">Could not load the queue: {error}</p>
+        <button onClick={refresh} className={`${btnPrimary} mt-4 px-4 py-2.5 text-sm`}>Try again</button>
+      </Card>
+    ) : (
+      <p className="mt-8 text-muted">Loading…</p>
+    );
 
   const submitted = apps.filter((a) => a.status === "submitted");
   const clear = submitted.filter((a) => a.overall === "pass");
@@ -43,6 +59,12 @@ export function QueuePage() {
         <PageHeading title="Review queue" subtitle="The tool recommends; you decide. Clear the easy ones fast, focus on the flagged." />
         <Link to="/submit" className={`${btnPrimary} px-4 py-2.5 text-sm`}>+ New application</Link>
       </div>
+
+      {error && (
+        <p role="alert" className="rounded-lg border border-fail/30 bg-fail/5 px-4 py-3 text-sm font-medium text-fail">
+          Action failed: {error}
+        </p>
+      )}
 
       {submitted.length === 0 && decided.length === 0 && <EmptyState />}
 
