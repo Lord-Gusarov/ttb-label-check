@@ -122,6 +122,18 @@ class SQLiteApplicationStore:
                        total INTEGER NOT NULL
                    )"""
             )
+            # Forward migration: add new columns to existing databases that predate
+            # the batch-upload feature.  SQLite has no ADD COLUMN IF NOT EXISTS, so
+            # we probe via PRAGMA and skip columns that are already present.
+            existing = {row[1] for row in c.execute("PRAGMA table_info(applications)")}
+            _new_cols = {
+                "batch_id": "ALTER TABLE applications ADD COLUMN batch_id TEXT",
+                "verify_status": "ALTER TABLE applications ADD COLUMN verify_status TEXT NOT NULL DEFAULT 'pending'",
+                "verify_error": "ALTER TABLE applications ADD COLUMN verify_error TEXT",
+            }
+            for col, ddl in _new_cols.items():
+                if col not in existing:
+                    c.execute(ddl)
 
     def _conn(self) -> sqlite3.Connection:
         c = sqlite3.connect(self._path, timeout=10)
