@@ -18,7 +18,6 @@ from app.readers import (  # noqa: E402,F401
     easyocr_reader,
     paddle_reader,
     rapidocr_reader,
-    tesseract_reader,
     vlm_reader,
 )
 from app.readers.composite import FallbackReader, build_reader  # noqa: E402

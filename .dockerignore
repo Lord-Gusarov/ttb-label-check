@@ -9,3 +9,6 @@ backend/app/static
 *.log
 take-home-assigment.md
 docs
+eval
+backend/tests
+backend/data

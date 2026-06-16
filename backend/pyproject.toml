@@ -8,6 +8,7 @@ dependencies = [
     "uvicorn[standard]>=0.32",
     "pydantic>=2.9",
     "python-multipart>=0.0.12",
+    "openai>=2.41.1",
 ]
 
 [project.optional-dependencies]
@@ -16,7 +17,6 @@ readers = [
     "opencv-python-headless>=4.10",
     "numpy>=1.26",
     "pillow>=10.4",
-    "pytesseract>=0.3.13",
     "rapidocr-onnxruntime>=1.3",
 ]
 # Heavier engines — optional bake-off entrants, enabled only if installed.
@@ -30,6 +30,7 @@ dev = [
     "pytest>=8.3",
     "httpx>=0.27",
     "ruff>=0.7",
+    "mypy>=1.13",
 ]
 
 [build-system]
@@ -42,6 +43,12 @@ packages = ["app"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+
+[tool.mypy]
+python_version = "3.12"
+files = ["app"]
+ignore_missing_imports = true
+check_untyped_defs = true
 
 [tool.ruff]
 line-length = 100

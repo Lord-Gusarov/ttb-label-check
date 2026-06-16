@@ -13,13 +13,15 @@ NEEDS_REVIEW (could be OCR noise OR real rewording — a human decides), not a h
 from __future__ import annotations
 
 import re
-from difflib import SequenceMatcher
 
 import numpy as np
 
-from app.bold.detector import detect_warning_bold, tesseract_words
+from app.bold.detector import detect_warning_bold
+from app.escalation import judge_warning_bold
+from app.readers.types import WordBox
 from app.rules.result import FieldResult, Verdict
-from app.rules.spec.government_warning import CANONICAL_WARNING
+from app.rules.spec.government_warning import CANONICAL_WARNING, missing_canonical_tokens
+from app.rules.warning_region import WarningRegion
 
 _WS = re.compile(r"\s+")
 _PREFIX_RE = re.compile(r"government\s*warning", re.IGNORECASE)
@@ -29,44 +31,44 @@ def _collapse(text: str) -> str:
     return _WS.sub(" ", text).strip()
 
 
-def _despace(text: str) -> str:
-    return re.sub(r"[^a-z0-9]", "", text.lower())
-
-
 def check_warning_text(label_text: str) -> FieldResult:
-    """Exact-wording check, anchored on the warning prefix, tolerant of OCR noise."""
+    """Exact-wording check by ordered token alignment, anchored on the warning prefix.
+
+    The regulation demands exact wording, but byte-comparison is hopeless against OCR
+    noise. Instead we verify that every canonical word appears, in order, within a bounded
+    window after the prefix (de-spaced, so OCR join/split errors are forgiven). PASS only
+    when the full legal content is present; any missing/changed word is NEEDS_REVIEW (the
+    agent reads it) — never a silent PASS. This deliberately catches material deletions
+    (e.g. a dropped "not") that a similarity ratio would score ~0.98 and pass.
+    """
     norm = _collapse(label_text)
     match = _PREFIX_RE.search(norm)
     if not match:
         return FieldResult(
-            "warning_text", "Government warning text", Verdict.FAIL,
+            "warning_text", "Government warning text", Verdict.NEEDS_REVIEW,
             expected="(canonical warning)", found=None,
             detail="warning statement not found on label",
         )
 
-    region = norm[match.start() :]
-    canon = CANONICAL_WARNING
-    # Compare both as collapsed-lowercase and fully de-spaced; take the better score
-    # (OCR merges/splits spaces, so de-spaced is the fairer floor).
-    ratio = max(
-        SequenceMatcher(None, canon.lower(), region.lower()).ratio(),
-        SequenceMatcher(None, _despace(canon), _despace(region)).ratio(),
-    )
-    if ratio >= 0.95:
-        verdict, detail = Verdict.PASS, f"matches required wording (similarity {ratio:.2f})"
-    elif ratio >= 0.80:
+    # Bound the candidate to a window starting at the prefix (~1.6x the canonical length)
+    # so canonical tokens can't be "found" scattered across unrelated label text.
+    window = norm[match.start() : match.start() + int(len(CANONICAL_WARNING) * 1.6)]
+    missing = missing_canonical_tokens(window)
+    if not missing:
+        verdict, detail = Verdict.PASS, "matches the required wording"
+    else:
+        # Prefix present, so the warning IS on the label — but some required wording could
+        # not be verified (OCR dropped it, or it's genuinely reworded). A human reads it.
+        shown = ", ".join(f"'{m}'" for m in missing[:6])
+        more = "…" if len(missing) > 6 else ""
         verdict, detail = (
             Verdict.NEEDS_REVIEW,
-            f"close to required wording (similarity {ratio:.2f}) — verify exact text / OCR",
-        )
-    else:
-        verdict, detail = (
-            Verdict.FAIL,
-            f"wording differs from required statement (similarity {ratio:.2f})",
+            f"warning present but wording not fully verified "
+            f"({len(missing)} word(s) missing/garbled: {shown}{more}) — read it",
         )
     return FieldResult(
         "warning_text", "Government warning text", verdict,
-        expected="(canonical warning)", found=region[:60] + "…", detail=detail,
+        expected="(canonical warning)", found=window[:60] + "…", detail=detail,
     )
 
 
@@ -87,39 +89,50 @@ def check_warning_caps(raw_text: str) -> FieldResult:
             expected="GOVERNMENT WARNING", found=found, detail="in all capital letters",
         )
     return FieldResult(
-        "warning_caps", "Warning prefix ALL-CAPS", Verdict.FAIL,
+        "warning_caps", "Warning prefix ALL-CAPS", Verdict.NEEDS_REVIEW,
         expected="GOVERNMENT WARNING", found=found,
         detail=f"must be ALL CAPS — found '{found}'",
     )
 
 
-def check_warning_bold(image: np.ndarray, words=None) -> FieldResult:
-    """Bold check via relative stroke width (see app.bold.detector)."""
-    finding = detect_warning_bold(image, words=words)
-    if finding.is_bold is True:
-        verdict = Verdict.PASS
-    elif finding.is_bold is False:
-        verdict = Verdict.FAIL
-    else:
-        verdict = Verdict.NEEDS_REVIEW
-    found = f"{finding.ratio:.2f}× body" if finding.ratio is not None else None
+def check_warning_bold(image: np.ndarray, words: list[WordBox] | None) -> FieldResult:
+    """Bold via relative stroke width; when the local measure is unclear, a fail-safe VLM
+    adjudicates on the warning crop. Never a hard FAIL: confident bold -> PASS, else NEEDS_REVIEW."""
+    finding = detect_warning_bold(image, words)
+    verdict = Verdict.PASS if finding.is_bold is True else Verdict.NEEDS_REVIEW
+    found = f"{finding.ratio:.2f}x body" if finding.ratio is not None else None
+    detail = finding.detail
+    if finding.is_bold is None:  # unclear -> VLM tiebreak (fail-safe; None when off/unavailable)
+        vote = judge_warning_bold(image)
+        if vote == "yes":
+            verdict, detail = Verdict.PASS, f"{detail}; VLM confirmed bold"
+        elif vote in {"no", "unclear"}:
+            detail = f"{detail}; VLM bold={vote}"
     return FieldResult(
         "warning_bold", "Warning prefix bold", verdict,
-        expected="bold", found=found, detail=finding.detail,
+        expected="bold", found=found, detail=detail,
     )
 
 
-def evaluate_warning(image: np.ndarray) -> list[FieldResult]:
-    """All three warning checks off a single Tesseract pass of the image.
-
-    The warning is read with Tesseract (word-level, case-preserving) regardless of the
-    primary reader — it's small printed text on flat artwork where Tesseract is reliable,
-    and the field-matching reader (e.g. RapidOCR) can be lossy on long text blocks.
+def evaluate_warning(
+    image: np.ndarray,
+    text: str,
+    words: list[WordBox],
+    region: WarningRegion | None = None,
+) -> list[FieldResult]:
+    """All three warning checks. When a second-pass `region` is supplied (anchored crop,
+    upscaled, re-OCR'd), the checks run on that cleaner output: text/caps on the re-read
+    text, bold on the upscaled crop + its boxes. Otherwise they fall back to the primary
+    full-image read.
     """
-    words = tesseract_words(image)
-    raw_text = " ".join(t for (t, _, _) in words)
+    if region is not None:
+        return [
+            check_warning_text(region.text),
+            check_warning_caps(region.text),
+            check_warning_bold(region.crop, region.words),
+        ]
     return [
-        check_warning_text(raw_text),
-        check_warning_caps(raw_text),
-        check_warning_bold(image, words=words),
+        check_warning_text(text),
+        check_warning_caps(text),
+        check_warning_bold(image, words),
     ]

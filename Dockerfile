@@ -14,16 +14,15 @@ RUN npm run build
 FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim
 WORKDIR /app
 
-# Tesseract = the default local OCR reader; libgl/glib = OpenCV runtime deps.
+# libgl/glib = OpenCV runtime deps.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        tesseract-ocr \
         libgl1 \
         libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies first (cached layer independent of app code).
 COPY backend/pyproject.toml ./
-RUN uv sync --no-dev --no-install-project
+RUN uv sync --no-dev --extra readers --no-install-project
 
 # App code + built frontend.
 COPY backend/app ./app

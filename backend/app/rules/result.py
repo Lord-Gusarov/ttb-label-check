@@ -13,18 +13,17 @@ from enum import Enum
 class Verdict(str, Enum):
     """Outcome of a single check or the whole label.
 
-    Severity order (low → high): PASS < WARN < NEEDS_REVIEW < FAIL.
-    We hard-FAIL only what we're certain of; anything we can't determine confidently
-    is NEEDS_REVIEW — a human decides. (Avoids false-fails that erode agent trust.)
+    Severity order (low → high): PASS < WARN < NEEDS_REVIEW.
+    The automated checks never auto-reject: anything not confidently determined is
+    NEEDS_REVIEW and a human makes the call. (Avoids false-fails that erode agent trust.)
     """
 
     PASS = "pass"
     WARN = "warn"
     NEEDS_REVIEW = "needs_review"
-    FAIL = "fail"
 
 
-_SEVERITY = {Verdict.PASS: 0, Verdict.WARN: 1, Verdict.NEEDS_REVIEW: 2, Verdict.FAIL: 3}
+_SEVERITY = {Verdict.PASS: 0, Verdict.WARN: 1, Verdict.NEEDS_REVIEW: 2}
 
 
 def severity(v: Verdict) -> int:
@@ -55,3 +54,12 @@ class LabelResult:
     commodity: str
     overall: Verdict
     fields: list[FieldResult] = field(default_factory=list)
+
+    @classmethod
+    def from_fields(cls, commodity: str, fields: list[FieldResult]) -> "LabelResult":
+        """The single place a label verdict is derived: overall = the worst field verdict.
+
+        Building results through this factory makes it impossible for `overall` to disagree
+        with `fields`. `worst([])` is NEEDS_REVIEW, so an empty field list rolls up safely.
+        """
+        return cls(commodity=commodity, overall=worst([f.verdict for f in fields]), fields=fields)

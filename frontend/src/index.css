@@ -1,27 +1,56 @@
 @import "tailwindcss";
+@import "@fontsource-variable/public-sans";
+@import "@fontsource-variable/source-serif-4";
 
-/* Accessibility-first base: large, high-contrast, calm.
-   The product benchmark is "a 73-year-old can use it" — generous sizing,
-   clear focus rings, no tiny targets. */
-:root {
-  font-size: 18px;
+/* "Federal Refined" — Public Sans (the U.S. federal typeface) + Source Serif 4 for
+   display; warm paper, ink, and a deep federal blue. Calm, authoritative, legible
+   (the 73-year-old benchmark). Fonts are vendored — no CDN, honoring no-egress. */
+@theme {
+  --font-sans: "Public Sans Variable", system-ui, sans-serif;
+  --font-serif: "Source Serif 4 Variable", Georgia, serif;
+
+  --color-paper: #f6f4ef;
+  --color-surface: #fdfdfb;
+  --color-ink: #1b2430;
+  --color-muted: #5b6675;
+  --color-line: #e5e1d8;
+  --color-brand: #1a4480;
+  --color-brand-soft: #eaf0f8;
+
+  --color-pass: #1f7a4d;
+  --color-pass-soft: #e7f4ec;
+  --color-flag: #a36400;
+  --color-flag-soft: #fbf1dd;
+  --color-fail: #b42318;
+  --color-fail-soft: #fbeae8;
 }
 
+:root {
+  font-size: 16px;
+}
 html,
 body,
 #root {
   height: 100%;
 }
-
 body {
   margin: 0;
-  font-family: system-ui, "Segoe UI", Roboto, sans-serif;
-  background: #f8fafc;
-  color: #0f172a;
+  font-family: var(--font-sans);
+  background-color: var(--color-paper);
+  /* faint engraved-paper texture for warmth/depth */
+  background-image: radial-gradient(rgba(27, 36, 48, 0.025) 1px, transparent 1px);
+  background-size: 22px 22px;
+  color: var(--color-ink);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
-
-/* Always show a visible focus ring for keyboard users. */
 :focus-visible {
-  outline: 3px solid #2563eb;
+  outline: 2px solid var(--color-brand);
   outline-offset: 2px;
 }
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+.rise { animation: rise 0.35s ease both; }

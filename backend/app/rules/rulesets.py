@@ -9,14 +9,24 @@ malt are wired structurally in step 7.
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from dataclasses import field as dc_field
+from typing import Optional
 
-from app.rules.comparators import match_abv, match_net_contents, match_text
+from app.rules.comparators import (
+    match_abv,
+    match_abv_wine,
+    match_country_of_origin,
+    match_net_contents,
+    match_responsible_party,
+    match_text,
+    require_phrase,
+)
 from app.rules.result import Verdict
 from app.rules.spec.tolerances import ABV_TOLERANCE_PCT
 
 # A comparator: (expected, label_text, **params) -> (verdict, found, detail)
-Comparator = Callable[..., tuple[Verdict, str | None, str]]
+Comparator = Callable[..., tuple[Verdict, Optional[str], str]]
 
 
 @dataclass(frozen=True)
@@ -24,7 +34,26 @@ class FieldPolicy:
     field: str  # key in the application dict
     label: str  # human-facing label
     comparator: Comparator
-    params: dict = field(default_factory=dict)
+    params: dict = dc_field(default_factory=dict)
+    # Optional predicate over the application: when present and False, the field is skipped
+    # entirely (no result). Used for conditional fields like country-of-origin (imports only).
+    applies_when: Optional[Callable[[dict], bool]] = None
+
+
+def _is_imported(application: dict) -> bool:
+    return (application.get("source") or "").strip().lower() == "imported"
+
+
+# Responsible party (name & address of bottler/producer) — required on all commodities.
+# Country of origin — required only for imports (gated by applies_when).
+def _responsible_party_policy() -> "FieldPolicy":
+    return FieldPolicy("responsible_party", "Name & address of bottler/producer", match_responsible_party, {})
+
+
+def _country_of_origin_policy() -> "FieldPolicy":
+    return FieldPolicy(
+        "country_of_origin", "Country of origin", match_country_of_origin, {}, applies_when=_is_imported
+    )
 
 
 DISTILLED_SPIRITS: list[FieldPolicy] = [
@@ -32,7 +61,7 @@ DISTILLED_SPIRITS: list[FieldPolicy] = [
         "brand_name",
         "Brand name",
         match_text,
-        {"fuzzy_threshold": 0.85, "absent_verdict": Verdict.FAIL},
+        {"fuzzy_threshold": 0.85, "absent_verdict": Verdict.NEEDS_REVIEW},
     ),
     FieldPolicy(
         "class_type",
@@ -52,10 +81,67 @@ DISTILLED_SPIRITS: list[FieldPolicy] = [
         match_net_contents,
         {},
     ),
+    _responsible_party_policy(),
+    _country_of_origin_policy(),
+]
+
+# Wine (27 CFR part 4): banded ABV tolerance with the hard 14% class line, plus the
+# sulfite declaration (presence-level — exemption under 10ppm is a human call).
+WINE: list[FieldPolicy] = [
+    FieldPolicy(
+        "brand_name",
+        "Brand name",
+        match_text,
+        {"fuzzy_threshold": 0.85, "absent_verdict": Verdict.NEEDS_REVIEW},
+    ),
+    FieldPolicy(
+        "class_type",
+        "Class/type designation",
+        match_text,
+        {"fuzzy_threshold": 0.80, "absent_verdict": Verdict.WARN},
+    ),
+    FieldPolicy("alcohol_content", "Alcohol content", match_abv_wine, {}),
+    FieldPolicy("net_contents", "Net contents", match_net_contents, {}),
+    FieldPolicy(
+        "sulfite_declaration",
+        "Sulfite declaration",
+        require_phrase,
+        {"phrase": "CONTAINS SULFITES", "absent_verdict": Verdict.WARN},
+    ),
+    _responsible_party_policy(),
+    _country_of_origin_policy(),
+]
+
+# Malt beverages (27 CFR part 7): structural — same mandatory fields as spirits with
+# the malt ABV tolerance; the low/non-alcohol floors stay a human call at this depth.
+MALT_BEVERAGE: list[FieldPolicy] = [
+    FieldPolicy(
+        "brand_name",
+        "Brand name",
+        match_text,
+        {"fuzzy_threshold": 0.85, "absent_verdict": Verdict.NEEDS_REVIEW},
+    ),
+    FieldPolicy(
+        "class_type",
+        "Class/type designation",
+        match_text,
+        {"fuzzy_threshold": 0.80, "absent_verdict": Verdict.WARN},
+    ),
+    FieldPolicy(
+        "alcohol_content",
+        "Alcohol content",
+        match_abv,
+        {"tolerance": ABV_TOLERANCE_PCT["malt_beverage"]},
+    ),
+    FieldPolicy("net_contents", "Net contents", match_net_contents, {}),
+    _responsible_party_policy(),
+    _country_of_origin_policy(),
 ]
 
 RULESETS: dict[str, list[FieldPolicy]] = {
     "distilled_spirits": DISTILLED_SPIRITS,
+    "wine": WINE,
+    "malt_beverage": MALT_BEVERAGE,
 }
 
 

@@ -31,3 +31,17 @@ models/
 *.onnx
 *.pt
 *.pdparams
+
+# Test artifacts
+artifacts/
+frontend/test-results/
+frontend/playwright-report/
+
+# runtime data (SQLite store)
+backend/data/
+
+# Eval dataset (generated / downloaded; regenerated via eval/fetch_cola.py + eval/generate*.py)
+eval/data/
+
+# Local planning artifacts (brainstorming specs / implementation plans)
+docs/superpowers/

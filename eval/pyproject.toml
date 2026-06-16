@@ -1,0 +1,7 @@
+# Eval suite config only. The package itself isn't built/installed — eval modules are run
+# as scripts and imported flat (pythonpath=".") with `app` available via the backend editable
+# install (which puts backend/ on sys.path).
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+markers = ["vlm: live VLM eval tests; opt-in via RUN_VLM_EVAL=1 (skipped by default)"]

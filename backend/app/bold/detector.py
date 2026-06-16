@@ -1,132 +1,113 @@
-"""Detect whether 'GOVERNMENT WARNING' is bold — by RELATIVE stroke width.
+"""Detect whether 'GOVERNMENT WARNING' is bold — OCR-free, by relative stroke width.
 
-27 CFR 16.21 requires the words 'GOVERNMENT WARNING' to be in bold type and the
-remainder of the statement NOT bold. OCR doesn't reliably report font weight, so we
-measure it from pixels: compare the stroke thickness of the GOVERNMENT/WARNING words
-against the regular-weight body text of the same warning, on the same image at the same
-scale. Bold is RELATIVE — this sidesteps absolute font/DPI calibration entirely.
+27 CFR 16.21 requires the words 'GOVERNMENT WARNING' to be in bold type. OCR engines don't
+report font weight, so we measure it from pixels: locate the warning region from the primary
+reader's boxes, then compare the stroke thickness of the **prefix** (left of the warning block,
+where 'GOVERNMENT WARNING' sits) against the **body** of the warning. Bold is RELATIVE, so this
+sidesteps absolute font/DPI calibration.
 
-Word boxes come from Tesseract (run here regardless of the primary reader): it gives
-word-level boxes — which the line-level engines don't — and the warning sits on flat
-artwork where Tesseract is reliable. If it can't locate the words, we return
-`needs_review` rather than guess.
+No Tesseract: the region comes from the primary reader's boxes; everything else is OpenCV. Bold
+detection is inherently approximate (small/dense/curved text), so it is never a hard FAIL — a
+confident measurement reads PASS, anything unclear is NEEDS_REVIEW for the agent to confirm.
 """
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 
 import cv2
 import numpy as np
 
 from app.readers.preprocess import to_grayscale
+from app.readers.types import WordBox
+from app.rules.normalize import despace
 
-# Stroke-width ratio (GW / body) thresholds. Calibrated on the corpus; relative, so
-# robust to font/size. Anything ambiguous degrades to needs_review (human decides).
-_BOLD_RATIO = 1.20
-_AMBIGUOUS_RATIO = 1.08
-
-_GW_WORDS = {"government", "warning"}
+_BOLD_RATIO = 1.15      # prefix stroke width must exceed body by this factor to read as bold
+                        # (1.15, not 1.20: genuinely-bold clean prefixes measure ~1.16x; flagging
+                        #  those "unclear" forced needless review when the VLM tiebreak is off)
+_NOT_BOLD_RATIO = 1.00  # at/below this (with a confident measurement) reads as NOT bold
+_MIN_GLYPH_H = 14       # below this prefix height, upscale + CLAHE before measuring
+_BODY_BAND = 8          # search body words within this many prefix-heights below the prefix
 
 
 @dataclass(frozen=True)
 class BoldFinding:
     is_bold: bool | None  # True / False / None (could not determine)
-    ratio: float | None  # GW stroke width / body stroke width
+    ratio: float | None  # prefix stroke width / body stroke width
     detail: str
 
 
-def _word_thickness(gray: np.ndarray, box: tuple[int, int, int, int]) -> float | None:
-    """Mean stroke width (px) of the text in a word box, via the distance transform.
-
-    Raw stroke width (not height-normalized): the prefix and body of a warning are the
-    same font size, differing only in weight, so a direct stroke-width comparison is the
-    cleanest signal — and avoids a case artifact (lowercase boxes are taller, which would
-    skew a height-normalized measure for a title-case prefix).
-    """
-    x1, y1, x2, y2 = box
-    crop = gray[max(0, y1) : y2, max(0, x1) : x2]
-    if crop.size == 0 or crop.shape[0] < 4 or crop.shape[1] < 4:
+def _stroke_width(gray_crop: np.ndarray) -> float | None:
+    """Mean stroke width (px) of dark text in a crop, via the distance transform."""
+    if gray_crop.size == 0 or gray_crop.shape[0] < 5 or gray_crop.shape[1] < 5:
         return None
-    # Text = dark on light -> invert so text pixels are foreground (255).
-    _, mask = cv2.threshold(crop, 0, 255, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)
+    _, mask = cv2.threshold(gray_crop, 0, 255, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)
     if not np.any(mask):
         return None
     dist = cv2.distanceTransform(mask, cv2.DIST_L2, 3)
     ridge = dist[dist > 0]
     if ridge.size == 0:
         return None
-    return 2.0 * float(ridge.mean())  # approx stroke width in px
+    return 2.0 * float(ridge.mean())
 
 
-def tesseract_words(image: np.ndarray) -> list[tuple[str, tuple[int, int, int, int], int]]:
-    """Return (text, bbox, top_y) for each confident word Tesseract finds.
+def _prep(crop: np.ndarray, glyph_h: int) -> np.ndarray:
+    """Upscale + contrast-normalize tiny/low-contrast crops so stroke width is measurable."""
+    if glyph_h >= _MIN_GLYPH_H or crop.size == 0:
+        return crop
+    scale = min(6, max(1, round(_MIN_GLYPH_H / max(1, glyph_h)) + 1))
+    up = cv2.resize(crop, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
+    if up.ndim == 3:
+        up = cv2.cvtColor(up, cv2.COLOR_BGR2GRAY)
+    return cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8)).apply(up)
 
-    Public so the warning text/caps checks can share a single Tesseract pass with the
-    bold detector (the warning is read with Tesseract for word-level fidelity regardless
-    of the primary reader).
+
+def _mean_stroke(gray: np.ndarray, boxes: list[WordBox]) -> float | None:
+    """Mean stroke width across the given word boxes (each crop prepped if tiny)."""
+    widths: list[float] = []
+    for b in boxes:
+        x1, y1, x2, y2 = b.bbox
+        crop = gray[max(0, y1):y2, max(0, x1):x2]
+        sw = _stroke_width(_prep(crop, y2 - y1))
+        if sw is not None:
+            widths.append(sw)
+    return float(np.mean(widths)) if widths else None
+
+
+def detect_warning_bold(image: np.ndarray, words: list[WordBox] | None) -> BoldFinding:
+    """Assess whether 'GOVERNMENT WARNING' is bold relative to the warning body.
+
+    Selects the prefix word boxes ('government'/'warning') and the body word boxes (the
+    other warning-paragraph words in a band below the prefix), then compares their mean
+    stroke widths. This is independent of line geometry, so justified/multi-line and
+    own-line prefixes both work. Tiny/low-contrast crops are upscaled + CLAHE'd first.
     """
-    import pytesseract
-    from pytesseract import Output
-
     gray = to_grayscale(image)
-    data = pytesseract.image_to_data(gray, output_type=Output.DICT)
-    words = []
-    for i, text in enumerate(data["text"]):
-        text = text.strip()
-        if not text or float(data["conf"][i]) < 0:
-            continue
-        x, y, w, h = data["left"][i], data["top"][i], data["width"][i], data["height"][i]
-        words.append((text, (x, y, x + w, y + h), y))
-    return words
+    words = words or []
+    prefix = [w for w in words if "government" in despace(w.text, keep_digits=False, strip_accents=False)
+              or "warning" in despace(w.text, keep_digits=False, strip_accents=False)]
+    if not prefix:
+        return BoldFinding(None, None, "could not locate the warning prefix to assess bold")
 
-
-def detect_warning_bold(
-    image: np.ndarray,
-    words: list[tuple[str, tuple[int, int, int, int], int]] | None = None,
-) -> BoldFinding:
-    """Assess whether the 'GOVERNMENT WARNING' prefix is bold relative to the body.
-
-    `words` may be passed in to reuse a single Tesseract pass shared with the text/caps
-    checks; if omitted, it's computed here.
-    """
-    gray = to_grayscale(image)
-    if words is None:
-        words = tesseract_words(image)
-
-    gw_boxes = [b for (t, b, _) in words if re.sub(r"[^a-z]", "", t.lower()) in _GW_WORDS]
-    if len(gw_boxes) < 2:
-        return BoldFinding(None, None, "could not locate 'GOVERNMENT WARNING' to assess bold")
-
-    gw_top = min(b[1] for b in gw_boxes)
-    # Body baseline = regular-weight clause words in the warning block (below/at the GW
-    # prefix), excluding the GW words themselves and short tokens/numbers.
-    body_boxes = [
-        b
-        for (t, b, y) in words
-        if y >= gw_top
-        and re.sub(r"[^a-z]", "", t.lower()) not in _GW_WORDS
-        and len(re.sub(r"[^a-z]", "", t.lower())) >= 4
+    anchor = min(prefix, key=lambda w: w.bbox[1])  # topmost prefix box
+    ah = anchor.bbox[3] - anchor.bbox[1]
+    band_bottom = anchor.bbox[1] + max(1, _BODY_BAND * ah)
+    prefix_set = set(prefix)
+    top = anchor.bbox[1] - ah // 2  # allow same-line jitter, exclude the line above the prefix
+    body = [
+        w for w in words
+        if w not in prefix_set and top <= w.bbox[1] <= band_bottom
     ]
-    if not body_boxes:
-        return BoldFinding(None, None, "no body text found to compare against")
+    if not body:
+        return BoldFinding(None, None, "no body text near the warning prefix to compare against")
 
-    gw_vals = [v for b in gw_boxes if (v := _word_thickness(gray, b)) is not None]
-    body_vals = [v for b in body_boxes if (v := _word_thickness(gray, b)) is not None]
-    if not gw_vals or not body_vals:
+    pw, bw = _mean_stroke(gray, prefix), _mean_stroke(gray, body)
+    if pw is None or bw is None or bw <= 0:
         return BoldFinding(None, None, "could not measure stroke width")
 
-    gw_thick = float(np.mean(gw_vals))
-    body_thick = float(np.median(body_vals))
-    if body_thick <= 0:
-        return BoldFinding(None, None, "degenerate body stroke width")
-
-    ratio = gw_thick / body_thick
+    ratio = pw / bw
     if ratio >= _BOLD_RATIO:
-        return BoldFinding(True, ratio, f"'GOVERNMENT WARNING' is bold ({ratio:.2f}× body)")
-    if ratio <= _AMBIGUOUS_RATIO:
-        return BoldFinding(
-            False, ratio, f"'GOVERNMENT WARNING' not bold ({ratio:.2f}× body)"
-        )
-    return BoldFinding(None, ratio, f"bold unclear ({ratio:.2f}× body) — review")
+        return BoldFinding(True, ratio, f"'GOVERNMENT WARNING' is bold ({ratio:.2f}x body)")
+    if ratio <= _NOT_BOLD_RATIO:
+        return BoldFinding(False, ratio, f"prefix not heavier than body ({ratio:.2f}x) — verify")
+    return BoldFinding(None, ratio, f"bold unclear ({ratio:.2f}x body) — verify the prefix is bold")
