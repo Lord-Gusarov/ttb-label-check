@@ -129,7 +129,7 @@ Deployed on **DigitalOcean App Platform** (built from this repo's Dockerfile; in
 with headroom for the OCR workload). Any Docker host works — including, in production, an
 Azure environment inside the agency boundary.
 
-> **Live prototype:** _<add deployed URL here>_
+> **Live prototype:** https://label-check-lbhhi.ondigitalocean.app
 
 ## Scope & limitations
 
