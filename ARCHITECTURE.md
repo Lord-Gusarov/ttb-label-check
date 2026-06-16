@@ -16,7 +16,7 @@ auditable rules.
         ▼
  pipeline.verify_label  ──────────────────────────────────────────────┐
         │                                                              │
-        │  ① READ (cheap, local, air-gapped)                          │
+        │  ① READ (cheap, local — on-box, no outbound call)          │
         │     reader.extract(image)  → text + word boxes (RapidOCR)   │
         │     warning re-read (anchored crop, scale search)           │
         │                                                              │
@@ -25,9 +25,9 @@ auditable rules.
         │       FieldPolicy table → comparators → FieldResult[]       │
         │     warning checks (text / ALL-CAPS / bold)                 │
         │                                                              │
-        │  ③ ESCALATE (optional, opt-in, only if a field ≠ PASS)      │
-        │     local geometry rescues (deskew / 90° re-read), OR       │
-        │     Tier-2 vision-LLM re-read (off by default, fail-safe)   │
+        │  ③ ESCALATE (only if a field ≠ PASS)                        │
+        │     Tier-2 LLM re-read (on by default, fail-safe), OR       │
+        │     local geometry rescues (deskew / 90° re-read)           │
         │                                                              │
         ▼                                                              │
  LabelResult (overall = worst field verdict) ◄────────────────────────┘
@@ -38,17 +38,30 @@ auditable rules.
 
 ## The two-tier design (cheapest-first)
 
-The agency firewall blocks outbound ML, and the prior vendor died at 30–40 s/label. So the
-common case must be **fast and local**, and any expensive step must be **earned**:
+The prior vendor died at 30–40 s/label, so the common case must be **fast and local**, and any
+expensive step must be **earned**:
 
-- **Tier 1 — local & deterministic (always on).** RapidOCR reads the label; the rules engine
-  renders the verdict. Runs fully air-gapped, ~sub-2 s median. This clears the easy/clean labels.
-- **Tier 2 — model escalation (opt-in, off by default).** Runs **only** when Tier 1 leaves a
-  field unverified. A vision-LLM re-reads the label; the **same deterministic comparators** then
-  judge the model's text. Fail-safe: if the model is unavailable it degrades to the local
-  verdict + human review. The model never renders the verdict.
+- **Tier 1 — local & deterministic (always on).** RapidOCR reads the label on-box; the rules
+  engine renders the verdict. ~sub-2 s median, no outbound call. This clears the easy/clean labels.
+- **Tier 2 — semantic-validation LLM (on by default).** Runs **only** when Tier 1 leaves a field
+  unverified. An LLM re-reads the label; the **same deterministic comparators** then judge the
+  model's text. Fail-safe: if the model is unavailable it degrades to the local verdict + human
+  review. The model never renders the verdict, and the client is **decoupled** (see below).
 
 Whatever neither tier can clear is `NEEDS REVIEW` → a human decides. Nothing auto-rejects.
+
+## Network security & deployment strategy
+
+Stakeholder discovery flagged that the internal network restricts outbound traffic to external
+cloud APIs (it previously broke a vendor integration). The design respects this **by being
+decoupled, not by disabling the LLM**:
+
+- **Local edge processing (OCR)** runs entirely on-box, so the common case needs no network and
+  high-bandwidth image traffic is avoided.
+- **The semantic-validation layer is pluggable.** This prototype calls the OpenAI API over HTTPS
+  for demonstration; the client swaps — with no change to the verdict logic — for an **Azure
+  OpenAI** deployment inside the agency **FedRAMP** boundary, or an **internal vLLM enclave**
+  with zero outbound internet. The same architecture therefore runs fully in-boundary in prod.
 
 ## Components
 

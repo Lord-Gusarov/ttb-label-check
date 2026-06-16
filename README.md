@@ -32,11 +32,13 @@ A submit → review → decide flow over a verification engine:
 
 Two tiers, cheapest first. A **local, deterministic** tier does the work for the common case:
 fast OCR (RapidOCR) reads the label, and a deterministic rules engine renders the verdict — so
-compliance is exact, reproducible, and auditable, and it runs **air-gapped** (no cloud egress,
-per the agency firewall). Only when the local tier can't confidently clear a label does an
-**optional model tier** (a vision LLM) re-read it — **opt-in and off by default**, fail-safe,
-and never the thing that decides legality. The model reads; the rules decide. See
-[`docs/design-decisions.md`](docs/design-decisions.md) for why, and what we measured.
+compliance is exact, reproducible, and auditable, and most labels are cleared **on-box** with no
+outbound call. The harder minority escalate to a **pluggable semantic-validation LLM tier**
+(**on by default**, fail-safe, and never the thing that decides legality — the model reads, the
+rules decide). That tier is **decoupled**: the demo uses the OpenAI API over HTTPS, but it swaps
+cleanly to an in-boundary endpoint (Azure OpenAI in a FedRAMP enclave, or an internal vLLM) for
+production — see [Network security & deployment strategy](#network-security--deployment-strategy).
+Details + what we measured: [`docs/design-decisions.md`](docs/design-decisions.md).
 
 ## Stack
 
@@ -89,22 +91,43 @@ cd eval && uv run --project ../backend pytest             # eval-harness unit te
 cd eval && RUN_LLM_EVAL=1 uv run --project ../backend pytest tests/test_llm_prompts.py
 ```
 
-## Optional: enable the model tier
+## Model tier (the semantic-validation layer)
 
-Off by default (fully local). To turn on the Tier-2 vision-LLM escalation:
+**On by default.** The Tier-2 LLM re-reads labels the local tier can't confidently clear. It
+needs a key (`$OPENAI_API_KEY` or `~/.oai_key`); it's **fail-safe** — if the key/network/model
+is unavailable it degrades to the local verdict + human review, never blocking or crashing.
 
 ```bash
-export WARNING_ESCALATION_MODEL=openai:gpt-5.4-mini      # opt-in; unset = air-gapped
-export OPENAI_API_KEY=sk-...                             # or ~/.oai_key
+export OPENAI_API_KEY=sk-...                          # or ~/.oai_key
+# default model is openai:gpt-5.4-mini; override or disable:
+export WARNING_ESCALATION_MODEL=openai:gpt-4.1-mini   # swap model/provider
+export WARNING_ESCALATION_MODEL=off                   # local-only
 ```
 
-It is fail-safe: if the key/network/model is unavailable it degrades to the local verdict and
-a human review — it can never block or crash a verification.
+## Network security & deployment strategy
+
+Stakeholder discovery flagged that the internal network restricts outbound traffic to external
+cloud APIs — a constraint that previously broke a third-party vendor integration. We address it
+**by architecture, not by disabling capability**, while still meeting the sub-5-second budget:
+
+- **Local edge processing (OCR).** Pixel processing, text extraction, and bounding-box
+  coordination run entirely locally (RapidOCR) — the common case is cleared on-box, so most
+  labels never need an outbound call.
+- **Pluggable semantic-validation layer (LLM).** The harder minority escalate to an LLM. This
+  prototype uses the OpenAI API over HTTPS for ease of demonstration, but the client is **fully
+  decoupled** — for an agency rollout it swaps, with no change to the verdict logic, for an
+  **Azure OpenAI** deployment inside the agency's existing **FedRAMP** boundary, or an
+  **internal inference enclave** (e.g. vLLM on government servers) with **zero outbound
+  internet**.
+
+So the same design runs entirely inside the agency boundary in production, while the prototype
+demonstrates end-to-end behavior over a standard HTTPS endpoint.
 
 ## Deployed application
 
-Single container, any host that runs Docker (the agency runs on Azure; this is a plain
-image). Build/run as above, or deploy the image to a container service.
+Deployed on **DigitalOcean App Platform** (built from this repo's Dockerfile; instance sized
+with headroom for the OCR workload). Any Docker host works — including, in production, an
+Azure environment inside the agency boundary.
 
 > **Live prototype:** _<add deployed URL here>_
 

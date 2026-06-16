@@ -1,21 +1,20 @@
 """Tier-2 escalation: re-read the WHOLE label with a MODEL when local OCR can't verify it.
 
-OFF by default (opt-in) and strictly FAIL-SAFE. The pipeline is fully local and air-gapped
-unless an operator explicitly opts in — escalation sends the label image off-host to an
-external provider, so it is never enabled implicitly. When on and the key, network, or API is
-unavailable, slow, or errors, this returns ``None`` and the pipeline keeps its deterministic
-``NEEDS_REVIEW``, leaving the call to a human. A model is never *required*; it only ever
-*helps*. Nothing here can stop or crash a verification.
+ON by default and strictly FAIL-SAFE — the pluggable semantic-validation layer of the hybrid
+pipeline. If the key, network, or API is unavailable, slow, or errors, this returns ``None``
+and the pipeline keeps its deterministic ``NEEDS_REVIEW``, leaving the call to a human. A model
+is never *required*; it only ever *helps*. Nothing here can stop or crash a verification.
 
 It only ever READS — it returns transcribed field text that the deterministic checks then
 judge. It never renders the verdict, and it is **blind to the declared application values**
 (it only sees the image), so it cannot "helpfully" output whatever would match.
 
-Enable with env ``WARNING_ESCALATION_MODEL`` — e.g. set it to ``"openai:gpt-5.4-mini"`` (the
-recommended model, see below). Leaving it unset (or ``"off"``) keeps escalation DISABLED and
-the pipeline fully local. Point it at another provider/endpoint (e.g. Azure OpenAI in a
-FedRAMP boundary, or a local server) to swap the reader — the verdict logic is unchanged. The
-OpenAI key is read from ``$OPENAI_API_KEY`` or ``~/.oai_key``.
+The layer is **decoupled**: this prototype uses the OpenAI API over HTTPS for ease of
+demonstration, but the client is swappable — for production it can point at an Azure OpenAI
+deployment inside an agency FedRAMP boundary, or an internal inference enclave (e.g. vLLM on
+government servers) with no outbound internet — without changing the verdict logic. Configure
+via env ``WARNING_ESCALATION_MODEL`` (default ``openai:gpt-5.4-mini``; set ``"off"`` to
+disable). The OpenAI key is read from ``$OPENAI_API_KEY`` or ``~/.oai_key``.
 """
 
 from __future__ import annotations
@@ -31,12 +30,11 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
-#: Default when WARNING_ESCALATION_MODEL is unset: escalation disabled (fully local/air-gapped).
-#: Tier 2 is opt-in because escalation sends the label image off-host. Recommended value when
-#: enabling is "openai:gpt-5.4-mini": benchmarked at 1.00 warning-recovery on the hard labels at
-#: ~2s (gpt-4.1-mini ties it; 5.4-mini is marginally faster / fewer tokens; gpt-4o-mini matched
-#: accuracy but ~20x the tokens).
-_DEFAULT_SPEC = "off"
+#: Default model when WARNING_ESCALATION_MODEL is unset: Tier 2 is ON by default. Set the env
+#: to "off" to disable, or point it at another provider/endpoint (Azure OpenAI in a FedRAMP
+#: boundary, an internal vLLM enclave, …). Benchmarked: gpt-5.4-mini hits 1.00 warning-recovery
+#: on the hard labels at ~2s (gpt-4.1-mini ties it; gpt-4o-mini matched accuracy but ~20x tokens).
+_DEFAULT_SPEC = "openai:gpt-5.4-mini"
 _DISABLED = {"", "off", "none", "disabled", "0", "false"}
 
 #: The fields the model transcribes. It is given the IMAGE only — never the declared values.
@@ -128,7 +126,7 @@ def escalate_label_read(image: np.ndarray) -> dict[str, str] | None:
     escalation is disabled/unavailable (caller keeps its local verdict). Never raises."""
     spec = os.environ.get("WARNING_ESCALATION_MODEL", _DEFAULT_SPEC).strip()
     if spec.lower() in _DISABLED:
-        return None  # disabled by default (air-gapped) unless opted in → fully local, fail-safe
+        return None  # explicitly disabled via env → local-only; fail-safe
     try:
         provider, _, model = spec.partition(":")
         if provider == "openai":

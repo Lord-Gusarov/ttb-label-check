@@ -11,13 +11,14 @@ The core idea is a **tiered cascade** that spends the least it can and escalates
 must:
 
 1. **Local, deterministic tier (always on).** Fast OCR + a deterministic rules engine. This is
-   the workhorse: it clears the clean/common labels in ~sub-2 s, fully **air-gapped**, with
-   exact, reproducible, auditable verdicts. Most of an agent's day is "does the number on the
-   form match the number on the label" — that's deterministic matching, and it belongs here.
-2. **Model tier (opt-in, off by default).** A vision-LLM re-read, invoked **only** when the
+   the workhorse: it clears the clean/common labels in ~sub-2 s **on-box** (no outbound call),
+   with exact, reproducible, auditable verdicts. Most of an agent's day is "does the number on
+   the form match the number on the label" — that's deterministic matching, and it belongs here.
+2. **Semantic-validation LLM tier (on by default).** An LLM re-read, invoked **only** when the
    local tier leaves a field unverified. It earns its cost/latency on the hard minority
-   (curved/angled/low-contrast labels) and is **fail-safe** — unavailable ⇒ degrade to the local
-   verdict + human review.
+   (curved/angled/low-contrast labels), is **fail-safe** (unavailable ⇒ degrade to the local
+   verdict + human review), and is **decoupled** so it can run in-boundary in production (see
+   *Network security & deployment strategy* below).
 3. **Human (always).** Whatever neither tier can confidently clear is `NEEDS REVIEW`. The tool
    **advises; it never auto-rejects.**
 
@@ -32,9 +33,28 @@ Two principles fall out of this and run through the whole codebase:
   said is essential ("don't make my life harder").
 
 This directly serves the stakeholder constraints: **< 5 s** (Tier 1 is the fast path),
-**no cloud egress** (Tier 1 is air-gapped; Tier 2 is opt-in), **trust / human-in-the-loop**
-(advisory verdicts with visible evidence), and **non-technical users** (a clean submit → review
-→ decide flow).
+**network constraints** (handled by a decoupled, swappable LLM layer — see below — rather than
+by disabling capability), **trust / human-in-the-loop** (advisory verdicts with visible
+evidence), and **non-technical users** (a clean submit → review → decide flow).
+
+## Network security & deployment strategy
+
+Stakeholder discovery flagged that the internal network restricts outbound traffic to external
+cloud APIs — a constraint that previously broke a third-party vendor integration. We address it
+**by architecture, not by disabling capability**, while still meeting the sub-5-second budget:
+
+- **Local edge processing (OCR).** Pixel processing, text extraction, and bounding-box
+  coordination run entirely locally (RapidOCR) — the common case is cleared on-box, so most
+  labels never require an outbound call and high-bandwidth image traffic is avoided.
+- **Pluggable semantic-validation layer (LLM).** The harder minority escalate to an LLM that
+  verifies the extracted content. This prototype uses the OpenAI API over HTTPS for ease of
+  demonstration, but the client is **fully decoupled** — for an agency rollout it swaps, with no
+  change to the verdict logic, for **Azure OpenAI** inside the agency's existing **FedRAMP**
+  boundary, or an **internal inference enclave** (e.g. vLLM on government servers) requiring
+  **zero outbound internet**.
+
+The point is flexibility: the same design runs entirely inside the agency boundary in
+production, while the prototype demonstrates end-to-end behavior over a standard HTTPS endpoint.
 
 ## How choices were made: measure, don't assume
 
@@ -88,10 +108,10 @@ loose presence check, and what it can't clear escalates / goes to a human.
 | Area | Choice | Why |
 |---|---|---|
 | Backend | Python 3.12 + FastAPI | fast to build, typed, great multipart/file support |
-| OCR (hot path) | RapidOCR (ONNX) | offline (bundled models → no egress), angle-robust, ~0.4 s |
+| OCR (hot path) | RapidOCR (ONNX) | runs on-box (bundled models, no per-image upload), angle-robust, ~0.4 s |
 | Image ops / bold | OpenCV | local stroke-width bold detection, decode guards |
 | Rules | hand-rolled deterministic engine | auditable legal verdicts; no model decides legality |
-| Model tier | cloud vision-LLM (OpenAI), opt-in | precise reads for the hard minority; fail-safe, declared-blind |
+| Model tier | LLM (OpenAI now; pluggable to Azure/vLLM) | precise reads for the hard minority; fail-safe, declared-blind |
 | Store | SQLite (+ in-memory double) | trivial, local; nothing sensitive retained |
 | Frontend | Vite + React + Tailwind | quick, modern, WCAG-AA; fonts vendored (no CDN) |
 | Tooling | uv, pytest, mypy, Playwright | reproducible deps, type gate, real e2e |
@@ -104,8 +124,9 @@ loose presence check, and what it can't clear escalates / goes to a human.
   per IT, that's a separate authorization beast).
 - **Three commodities**: distilled spirits (seeded deepest — the brief's sample), wine, and malt
   beverage (wired structurally).
-- **Local-first; the model tier is opt-in and off by default**, honoring the no-egress firewall.
-  Enabling it sends the label image to an external provider — a deliberate operator choice.
+- **Hybrid: local OCR + an on-by-default semantic-validation LLM tier**, decoupled so it can run
+  in-boundary (Azure OpenAI / internal vLLM) in production (see *Network security & deployment
+  strategy*). The prototype calls OpenAI over HTTPS for demonstration.
 - **Prototype data posture**: no auth, nothing sensitive stored (per IT: "don't do anything
   crazy… we're not storing anything sensitive for this exercise").
 - **The warning text is the fixed federal statement**; "exact" is checked at the word + numbering

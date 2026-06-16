@@ -1,5 +1,5 @@
-"""Tier-2 escalation is OFF by default (opt-in) and strictly FAIL-SAFE: when not enabled, or
-when the model is missing/broken, it degrades to a human review — never blocks or crashes."""
+"""Tier-2 escalation is ON by default and strictly FAIL-SAFE: when the model is missing/broken,
+or explicitly disabled, it degrades to a human review — never blocks or crashes."""
 
 from __future__ import annotations
 
@@ -13,11 +13,20 @@ def _img() -> np.ndarray:
     return np.zeros((10, 10, 3), dtype=np.uint8)
 
 
-def test_default_off_is_opt_in(monkeypatch: pytest.MonkeyPatch) -> None:
-    # Escalation is off by default: with the env var unset it must NOT call out, even when a
-    # key is available — opting in requires explicitly setting WARNING_ESCALATION_MODEL.
+def test_default_on_attempts_escalation(monkeypatch: pytest.MonkeyPatch) -> None:
+    # ON by default: with the env var unset, escalation still runs (reaches the model call).
+    # Stub the network layer so no real request is made.
     monkeypatch.delenv("WARNING_ESCALATION_MODEL", raising=False)
-    monkeypatch.setattr("app.escalation._read_key", lambda: "sk-fake")
+    monkeypatch.setattr("app.escalation._chat_json", lambda *a, **k: {"brand_name": "ACME"})
+    out = escalate_label_read(_img())
+    assert out is not None and out["brand_name"] == "ACME"
+
+
+def test_default_on_without_key_is_failsafe(monkeypatch: pytest.MonkeyPatch) -> None:
+    # On by default, but fail-safe: no key reachable -> degrades to None, never raises.
+    monkeypatch.delenv("WARNING_ESCALATION_MODEL", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setattr("app.escalation._read_key", lambda: None)
     assert escalate_label_read(_img()) is None
 
 

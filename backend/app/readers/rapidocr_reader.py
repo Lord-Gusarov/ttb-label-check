@@ -1,8 +1,8 @@
 """RapidOCR adapter (PaddleOCR-class models on ONNX: small, offline, robust on angles).
 
-Bundles its own ONNX models in the pip package — no network at runtime, so it fits
-the egress-blocked constraint. Includes angle classification, which helps on the
-rotated / creative-layout labels that trip up plain Tesseract.
+Bundles its own ONNX models in the pip package — no network at runtime, so OCR runs
+fully on-box. Includes angle classification, which helps on the rotated /
+creative-layout labels that trip up plain Tesseract.
 """
 
 from __future__ import annotations

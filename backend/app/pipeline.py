@@ -9,7 +9,7 @@ Reading escalates through two tiers; the second only runs when the first left a 
 
     Tier 1  LOCAL reading — RapidOCR two-pass with scale search, plus measured geometry
             rescues (ink-profile deskew; 90° re-read for sidebar/keg-collar warnings).
-            ~1.4s typical. No egress: this tier alone is the air-gapped configuration.
+            ~1.4s typical. Runs entirely on-box (no outbound call).
     Tier 2  MODEL reader (cloud or local enclave), env-gated, ~3s — blur / hostile type.
 
 The model runs before the local geometry rescues on the hot path (it fixes recognition
@@ -158,7 +158,7 @@ def verify_label(
 
     fields = list(field_result.fields) + warning_fields
 
-    # LOCAL geometry rescues (deskew / 90° re-read) — the AIR-GAPPED fallback ONLY. A VLM reads
+    # LOCAL geometry rescues (deskew / 90° re-read) — the LOCAL-ONLY fallback. A VLM reads
     # rotated/curved warnings natively, so when the model is available it supersedes these: we never
     # run both (that was the double-grind). Each is one measured correction + one re-read, adopted
     # only if it improves the warning verdict:
@@ -185,7 +185,7 @@ def verify_label(
     # runs after it (unresolved → NEEDS_REVIEW for a human). The image is DOWNSCALED for the upload
     # (the model reads text, not exact pixels), capping latency on large scans. Declared-blind
     # whole-label read; the engine adopts only per-field improvements. Fail-safe: returns None when
-    # the model is off/unavailable — and ONLY then do the local geometry rescues run (air-gapped path).
+    # the model is off/unavailable — and ONLY then do the local geometry rescues run (local-only path).
     if any(f.verdict is not Verdict.PASS for f in fields):
         model = _timed(
             "tier2_model",
