@@ -5,6 +5,7 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import Response
 from pydantic import BaseModel
 
+from app import worker
 from app.pipeline import verify_label
 from app.rules import RULESETS
 from app.serialize import serialize_verification
@@ -104,9 +105,10 @@ def get_application(app_id: str) -> dict:
     a = store.get(app_id)
     if a is None:
         raise HTTPException(404, "application not found")
-    # Synchronous fallback for the worker-dormant case (e.g. tests): verify items the
-    # worker hasn't taken yet. Errored items are NOT retried here — use /reverify for that.
-    if a.verify_status == "pending":
+    # Synchronous fallback ONLY when the background worker is dormant (e.g. tests). When the
+    # worker is running it owns verification — don't double-run it on the request thread.
+    # Errored items are NOT retried here — use /reverify for that.
+    if a.verify_status == "pending" and not worker.is_running():
         verify_application(a)
     return _detail(a)
 

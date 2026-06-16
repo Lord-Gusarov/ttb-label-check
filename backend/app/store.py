@@ -134,6 +134,14 @@ class SQLiteApplicationStore:
             for col, ddl in _new_cols.items():
                 if col not in existing:
                     c.execute(ddl)
+            # Backfill: rows that already have a verification result were verified before
+            # verify_status was introduced. Stamp them 'verified' so the worker's re-enqueue
+            # loop on startup doesn't re-run OCR on every legacy row.  The UPDATE is
+            # idempotent — it's a no-op when no such rows exist (normal operation).
+            c.execute(
+                "UPDATE applications SET verify_status='verified' "
+                "WHERE verification IS NOT NULL AND verify_status='pending'"
+            )
 
     def _conn(self) -> sqlite3.Connection:
         c = sqlite3.connect(self._path, timeout=10)

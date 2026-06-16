@@ -39,6 +39,11 @@ def start() -> None:
             enqueue(a.id)
 
 
+def is_running() -> bool:
+    """True once the pool is started (production); False while dormant (e.g. tests)."""
+    return _executor is not None
+
+
 def enqueue(app_id: str) -> None:
     if _executor is None:
         return  # dormant: the caller's synchronous fallback handles verification
