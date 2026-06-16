@@ -83,7 +83,7 @@ export function BatchPage() {
         )}
 
         <button disabled={!ready || busy} onClick={submit} className={`${btnPrimary} px-5 py-3 text-base disabled:opacity-50`}>
-          {busy ? "Uploading…" : `Upload ${rec.count || ""} applications`.trim()}
+          {busy ? "Uploading…" : rec.count > 0 ? `Upload ${rec.count} applications` : "Upload applications"}
         </button>
         {error && <p role="alert" className="text-sm font-medium text-fail">Could not upload: {error}</p>}
       </Card>
