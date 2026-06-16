@@ -1,4 +1,4 @@
-import { useId, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import type { Verdict } from "./types";
 
 // `cls` styles the chip; `dot` tints the status dot; `hex` is the on-image overlay color.
@@ -84,10 +84,9 @@ export function formatWhen(epochSeconds: number): string {
 export interface TabDef { key: string; label: string; count: number; }
 
 /** WCAG-AA tablist: roving focus, arrow-key navigation, aria-selected. */
-export function Tabs({ tabs, active, onChange }: {
-  tabs: TabDef[]; active: string; onChange: (key: string) => void;
+export function Tabs({ tabs, active, onChange, panelId }: {
+  tabs: TabDef[]; active: string; onChange: (key: string) => void; panelId: string;
 }) {
-  const base = useId();
   function onKey(e: React.KeyboardEvent, i: number) {
     if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
     e.preventDefault();
@@ -96,7 +95,7 @@ export function Tabs({ tabs, active, onChange }: {
     // Roving tabindex: focus must follow selection on keyboard nav (focus() ignores the
     // current tabIndex=-1). We move focus here, not in an effect, so initial render and
     // mouse clicks don't steal focus.
-    document.getElementById(`${base}-${tabs[next].key}`)?.focus();
+    document.getElementById(`${panelId}-tab-${tabs[next].key}`)?.focus();
   }
   return (
     <div role="tablist" aria-label="Queue filters" className="flex flex-wrap gap-1 border-b border-line">
@@ -106,8 +105,9 @@ export function Tabs({ tabs, active, onChange }: {
           <button
             key={t.key}
             role="tab"
-            id={`${base}-${t.key}`}
+            id={`${panelId}-tab-${t.key}`}
             aria-selected={selected}
+            aria-controls={panelId}
             tabIndex={selected ? 0 : -1}
             onClick={() => onChange(t.key)}
             onKeyDown={(e) => onKey(e, i)}

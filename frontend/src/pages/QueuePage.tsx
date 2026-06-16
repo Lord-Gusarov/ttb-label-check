@@ -60,15 +60,30 @@ export function QueuePage() {
     { key: "verifying", label: "Verifying", count: verifying.length },
     { key: "decided", label: "Decided", count: decided.length },
   ];
-  const active = params.get("tab") ?? "attention";
+  const raw = params.get("tab") ?? "attention";
+  const active = tabs.some((t) => t.key === raw) ? raw : "attention";
   const setTab = (key: string) => setParams({ tab: key }, { replace: true });
+  const panelId = "queue-panel";
+
+  const heading = (
+    <div className="flex flex-wrap items-end justify-between gap-4">
+      <PageHeading title="Review queue" subtitle="The tool recommends; you decide." />
+      <Link to="/submit" className={`${btnPrimary} px-4 py-2.5 text-sm`}>+ New application</Link>
+    </div>
+  );
+
+  if (apps.length === 0) {
+    return (
+      <div className="rise space-y-6">
+        {heading}
+        <EmptyState />
+      </div>
+    );
+  }
 
   return (
     <div className="rise space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <PageHeading title="Review queue" subtitle="The tool recommends; you decide." />
-        <Link to="/submit" className={`${btnPrimary} px-4 py-2.5 text-sm`}>+ New application</Link>
-      </div>
+      {heading}
 
       {error && (
         <p role="alert" className="rounded-lg border border-fail/30 bg-fail/5 px-4 py-3 text-sm font-medium text-fail">
@@ -76,36 +91,34 @@ export function QueuePage() {
         </p>
       )}
 
-      <Tabs tabs={tabs} active={active} onChange={setTab} />
+      <Tabs tabs={tabs} active={active} onChange={setTab} panelId={panelId} />
 
-      {apps.length === 0 ? <EmptyState /> : (
-        <div role="tabpanel" aria-label={tabs.find((t) => t.key === active)?.label} className="space-y-3">
-          {active === "attention" && (attention.length
-            ? <Table apps={attention} onOpen={(id) => navigate(`/queue/${id}`)} />
-            : <Empty msg="Nothing flagged. 🎉" />)}
-          {active === "approve" && (clear.length ? (
-            <>
-              <div className="flex justify-end">
-                <button disabled={busy} onClick={() => approve(clear.map((a) => a.id))} className={`${btnPass} px-4 py-2.5 text-sm`}>
-                  {busy ? "Approving…" : `Approve all ${clear.length}`}
+      <div id={panelId} role="tabpanel" aria-labelledby={`${panelId}-tab-${active}`} tabIndex={0} className="space-y-3">
+        {active === "attention" && (attention.length
+          ? <Table apps={attention} onOpen={(id) => navigate(`/queue/${id}`)} />
+          : <Empty msg="Nothing flagged. 🎉" />)}
+        {active === "approve" && (clear.length ? (
+          <>
+            <div className="flex justify-end">
+              <button disabled={busy} onClick={() => approve(clear.map((a) => a.id))} className={`${btnPass} px-4 py-2.5 text-sm`}>
+                {busy ? "Approving…" : `Approve all ${clear.length}`}
+              </button>
+            </div>
+            <Table apps={clear} onOpen={(id) => navigate(`/queue/${id}`)}
+              rowAction={(a) => (
+                <button disabled={busy} onClick={(e) => { e.stopPropagation(); approve([a.id]); }} className={`${btnOutlinePass} px-3 py-1.5 text-xs`}>
+                  Approve
                 </button>
-              </div>
-              <Table apps={clear} onOpen={(id) => navigate(`/queue/${id}`)}
-                rowAction={(a) => (
-                  <button disabled={busy} onClick={(e) => { e.stopPropagation(); approve([a.id]); }} className={`${btnOutlinePass} px-3 py-1.5 text-xs`}>
-                    Approve
-                  </button>
-                )} />
-            </>
-          ) : <Empty msg="No clear applications waiting." />)}
-          {active === "verifying" && (verifying.length
-            ? <Table apps={verifying} onOpen={(id) => navigate(`/queue/${id}`)} />
-            : <Empty msg="Nothing in progress." />)}
-          {active === "decided" && (decided.length
-            ? <Table apps={decided} onOpen={(id) => navigate(`/queue/${id}`)} />
-            : <Empty msg="No decisions yet." />)}
-        </div>
-      )}
+              )} />
+          </>
+        ) : <Empty msg="No clear applications waiting." />)}
+        {active === "verifying" && (verifying.length
+          ? <Table apps={verifying} onOpen={(id) => navigate(`/queue/${id}`)} />
+          : <Empty msg="Nothing in progress." />)}
+        {active === "decided" && (decided.length
+          ? <Table apps={decided} onOpen={(id) => navigate(`/queue/${id}`)} />
+          : <Empty msg="No decisions yet." />)}
+      </div>
     </div>
   );
 }
@@ -138,7 +151,7 @@ function Table({ apps, onOpen, rowAction }: {
               </td>
               <td className="hidden px-5 py-4 text-muted sm:table-cell">{COMMODITY[a.commodity_type] ?? a.commodity_type}</td>
               <td className="px-5 py-4">
-                {a.verify_status === "verified" && a.overall ? <VerdictPill verdict={a.overall} />
+                {a.verify_status === "verified" && a.overall != null ? <VerdictPill verdict={a.overall} />
                   : a.verify_status === "error" ? <span className="text-xs font-medium text-fail">Error</span>
                   : <span className="text-xs text-muted">Verifying…</span>}
               </td>

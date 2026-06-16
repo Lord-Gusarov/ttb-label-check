@@ -66,7 +66,7 @@ export function BatchProgressPage() {
                   <Link to={`/queue/${a.id}`} className="hover:text-brand hover:underline">{a.brand_name}</Link>
                 </td>
                 <td className="px-5 py-3">
-                  {a.verify_status === "verified" && a.overall ? <VerdictPill verdict={a.overall} />
+                  {a.verify_status === "verified" && a.overall != null ? <VerdictPill verdict={a.overall} />
                     : a.verify_status === "error" ? <span className="text-xs font-medium text-fail">Error</span>
                     : <span className="text-xs text-muted">Verifying…</span>}
                 </td>
