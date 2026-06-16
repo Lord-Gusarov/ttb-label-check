@@ -1,8 +1,8 @@
 import { type ReactNode, useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { decide, listApplications } from "../api";
 import type { AppSummary } from "../types";
-import { Card, PageHeading, StatusBadge, VerdictPill, btnOutlinePass, btnPass, btnPrimary } from "../ui";
+import { Card, PageHeading, StatusBadge, Tabs, VerdictPill, btnOutlinePass, btnPass, btnPrimary, formatWhen } from "../ui";
 
 const COMMODITY: Record<string, string> = {
   distilled_spirits: "Distilled spirits",
@@ -15,6 +15,7 @@ export function QueuePage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
 
   function refresh() {
     listApplications()
@@ -47,16 +48,25 @@ export function QueuePage() {
     ) : (
       <p className="mt-8 text-muted">Loading…</p>
     );
-
-  const submitted = apps.filter((a) => a.status === "submitted");
-  const clear = submitted.filter((a) => a.overall === "pass");
-  const attention = submitted.filter((a) => a.overall !== "pass");
+  const verifying = apps.filter((a) => a.status === "submitted" && a.verify_status !== "verified" && a.verify_status !== "error");
+  const verified = apps.filter((a) => a.status === "submitted" && (a.verify_status === "verified" || a.verify_status === "error"));
+  const clear = verified.filter((a) => a.overall === "pass");
+  const attention = verified.filter((a) => a.overall !== "pass");
   const decided = apps.filter((a) => a.status !== "submitted");
 
+  const tabs = [
+    { key: "attention", label: "Needs attention", count: attention.length },
+    { key: "approve", label: "Recommended to approve", count: clear.length },
+    { key: "verifying", label: "Verifying", count: verifying.length },
+    { key: "decided", label: "Decided", count: decided.length },
+  ];
+  const active = params.get("tab") ?? "attention";
+  const setTab = (key: string) => setParams({ tab: key }, { replace: true });
+
   return (
-    <div className="rise space-y-8">
+    <div className="rise space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
-        <PageHeading title="Review queue" subtitle="The tool recommends; you decide. Clear the easy ones fast, focus on the flagged." />
+        <PageHeading title="Review queue" subtitle="The tool recommends; you decide." />
         <Link to="/submit" className={`${btnPrimary} px-4 py-2.5 text-sm`}>+ New application</Link>
       </div>
 
@@ -66,75 +76,37 @@ export function QueuePage() {
         </p>
       )}
 
-      {submitted.length === 0 && decided.length === 0 && <EmptyState />}
+      <Tabs tabs={tabs} active={active} onChange={setTab} />
 
-      <div className="stagger space-y-8">
-        {attention.length > 0 && (
-          <Section
-            tone="flag"
-            title={`Needs your attention (${attention.length})`}
-            subtitle="Automated checks flagged something — open to review the evidence and decide."
-          >
-            <Table apps={attention} onOpen={(id) => navigate(`/queue/${id}`)} />
-          </Section>
-        )}
-
-        {clear.length > 0 && (
-          <Section
-            tone="pass"
-            title={`Recommended to approve (${clear.length})`}
-            subtitle="Every automated check passed. Glance and clear — or approve them all."
-            action={
-              <button disabled={busy} onClick={() => approve(clear.map((a) => a.id))} className={`${btnPass} px-4 py-2.5 text-sm`}>
-                {busy ? "Approving…" : `Approve all ${clear.length}`}
-              </button>
-            }
-          >
-            <Table
-              apps={clear}
-              onOpen={(id) => navigate(`/queue/${id}`)}
-              rowAction={(a) => (
-                <button
-                  disabled={busy}
-                  onClick={(e) => { e.stopPropagation(); approve([a.id]); }}
-                  className={`${btnOutlinePass} px-3 py-1.5 text-xs`}
-                >
-                  Approve
+      {apps.length === 0 ? <EmptyState /> : (
+        <div role="tabpanel" aria-label={tabs.find((t) => t.key === active)?.label} className="space-y-3">
+          {active === "attention" && (attention.length
+            ? <Table apps={attention} onOpen={(id) => navigate(`/queue/${id}`)} />
+            : <Empty msg="Nothing flagged. 🎉" />)}
+          {active === "approve" && (clear.length ? (
+            <>
+              <div className="flex justify-end">
+                <button disabled={busy} onClick={() => approve(clear.map((a) => a.id))} className={`${btnPass} px-4 py-2.5 text-sm`}>
+                  {busy ? "Approving…" : `Approve all ${clear.length}`}
                 </button>
-              )}
-            />
-          </Section>
-        )}
-
-        {decided.length > 0 && (
-          <Section tone="muted" title="Decided" subtitle="Already approved or rejected.">
-            <Table apps={decided} onOpen={(id) => navigate(`/queue/${id}`)} />
-          </Section>
-        )}
-      </div>
-    </div>
-  );
-}
-
-const TONE: Record<string, string> = { flag: "bg-flag", pass: "bg-pass", muted: "bg-line-strong" };
-
-function Section({ title, subtitle, action, tone = "muted", children }: {
-  title: string; subtitle: string; action?: ReactNode; tone?: string; children: ReactNode;
-}) {
-  return (
-    <section>
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-start gap-2.5">
-          <span aria-hidden className={`mt-1 h-5 w-1.5 shrink-0 rounded-full ${TONE[tone]}`} />
-          <div>
-            <h2 className="text-base font-bold tracking-tight text-ink">{title}</h2>
-            <p className="text-sm text-muted">{subtitle}</p>
-          </div>
+              </div>
+              <Table apps={clear} onOpen={(id) => navigate(`/queue/${id}`)}
+                rowAction={(a) => (
+                  <button disabled={busy} onClick={(e) => { e.stopPropagation(); approve([a.id]); }} className={`${btnOutlinePass} px-3 py-1.5 text-xs`}>
+                    Approve
+                  </button>
+                )} />
+            </>
+          ) : <Empty msg="No clear applications waiting." />)}
+          {active === "verifying" && (verifying.length
+            ? <Table apps={verifying} onOpen={(id) => navigate(`/queue/${id}`)} />
+            : <Empty msg="Nothing in progress." />)}
+          {active === "decided" && (decided.length
+            ? <Table apps={decided} onOpen={(id) => navigate(`/queue/${id}`)} />
+            : <Empty msg="No decisions yet." />)}
         </div>
-        {action}
-      </div>
-      {children}
-    </section>
+      )}
+    </div>
   );
 }
 
@@ -151,12 +123,13 @@ function Table({ apps, onOpen, rowAction }: {
             <th className="px-5 py-3 font-semibold">Brand</th>
             <th className="hidden px-5 py-3 font-semibold sm:table-cell">Type</th>
             <th className="px-5 py-3 font-semibold">Check</th>
+            <th className="hidden px-5 py-3 font-semibold md:table-cell">Submitted</th>
             <th className="px-5 py-3 text-right font-semibold">Status</th>
             {rowAction && <th className="px-5 py-3 text-right font-semibold">Action</th>}
           </tr>
         </thead>
         <tbody className="divide-y divide-line">
-          {apps.map((a) => (
+          {[...apps].sort((x, y) => y.created_at - x.created_at).map((a) => (
             <tr key={a.id} onClick={() => onOpen(a.id)} className="cursor-pointer transition hover:bg-brand-soft/40">
               <td className="px-5 py-4 font-semibold text-ink">
                 <Link to={`/queue/${a.id}`} className="rounded hover:text-brand hover:underline" onClick={(e) => e.stopPropagation()}>
@@ -164,7 +137,12 @@ function Table({ apps, onOpen, rowAction }: {
                 </Link>
               </td>
               <td className="hidden px-5 py-4 text-muted sm:table-cell">{COMMODITY[a.commodity_type] ?? a.commodity_type}</td>
-              <td className="px-5 py-4">{a.overall ? <VerdictPill verdict={a.overall} /> : <span className="text-xs text-muted">—</span>}</td>
+              <td className="px-5 py-4">
+                {a.verify_status === "verified" && a.overall ? <VerdictPill verdict={a.overall} />
+                  : a.verify_status === "error" ? <span className="text-xs font-medium text-fail">Error</span>
+                  : <span className="text-xs text-muted">Verifying…</span>}
+              </td>
+              <td className="hidden px-5 py-4 text-muted md:table-cell">{formatWhen(a.created_at)}</td>
               <td className="px-5 py-4 text-right"><StatusBadge status={a.status} /></td>
               {rowAction && <td className="px-5 py-4 text-right">{rowAction(a)}</td>}
             </tr>
@@ -173,6 +151,10 @@ function Table({ apps, onOpen, rowAction }: {
       </table>
     </Card>
   );
+}
+
+function Empty({ msg }: { msg: string }) {
+  return <p className="px-1 py-8 text-center text-muted">{msg}</p>;
 }
 
 function EmptyState() {

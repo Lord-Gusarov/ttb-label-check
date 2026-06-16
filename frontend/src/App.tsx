@@ -4,9 +4,12 @@ import { ErrorBoundary } from "./ErrorBoundary";
 import { SubmitPage } from "./pages/SubmitPage";
 import { QueuePage } from "./pages/QueuePage";
 import { ReviewPage } from "./pages/ReviewPage";
+import { BatchPage } from "./pages/BatchPage";
+import { BatchProgressPage } from "./pages/BatchProgressPage";
 
 const NAV = [
   { to: "/submit", label: "Submit application", icon: <PlusIcon /> },
+  { to: "/batch", label: "Batch upload", icon: <PlusIcon /> },
   { to: "/queue", label: "Review queue", icon: <ListIcon /> },
 ];
 
@@ -22,6 +25,8 @@ export default function App() {
             <Routes>
               <Route path="/" element={<Navigate to="/submit" replace />} />
               <Route path="/submit" element={<SubmitPage />} />
+              <Route path="/batch" element={<BatchPage />} />
+              <Route path="/batch/:id" element={<BatchProgressPage />} />
               <Route path="/queue" element={<QueuePage />} />
               <Route path="/queue/:id" element={<ReviewPage />} />
               <Route path="*" element={<Navigate to="/submit" replace />} />
@@ -83,9 +88,13 @@ function TopBar() {
   const { pathname } = useLocation();
   const crumb = pathname.startsWith("/submit")
     ? "Submit application"
-    : pathname.startsWith("/queue/")
-      ? "Review queue / Application"
-      : "Review queue";
+    : pathname.startsWith("/batch/")
+      ? "Batch upload / Progress"
+      : pathname.startsWith("/batch")
+        ? "Batch upload"
+        : pathname.startsWith("/queue/")
+          ? "Review queue / Application"
+          : "Review queue";
   return (
     <header className="sticky top-0 z-10 border-b border-line bg-paper/85 backdrop-blur-md">
       <div className="mx-auto flex max-w-6xl items-center gap-3 px-5 py-3.5 text-sm md:px-10">
