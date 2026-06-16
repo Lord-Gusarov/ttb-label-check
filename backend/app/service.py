@@ -34,14 +34,17 @@ def _decode(raw: bytes) -> np.ndarray:
     return img
 
 
-def validate_image(raw: bytes) -> None:
-    """Raise ImageError if `raw` is too big, unreadable, or over the pixel cap."""
+def validate_image(raw: bytes) -> np.ndarray:
+    """Raise ImageError if `raw` is too big, unreadable, or over the pixel cap.
+
+    Returns the decoded image array so callers can reuse it without a second decode."""
     if len(raw) > MAX_UPLOAD_BYTES:
         raise ImageError(f"image exceeds the {MAX_UPLOAD_BYTES // (1024 * 1024)}MB limit")
     img = _decode(raw)
     h, w = img.shape[:2]
     if h * w > MAX_PIXELS:
         raise ImageError(f"image resolution exceeds the {MAX_PIXELS // 1_000_000}MP limit")
+    return img
 
 
 def process_one(payload: dict, image_bytes: bytes, *, batch_id: str | None = None) -> Application:

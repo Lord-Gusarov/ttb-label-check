@@ -1,8 +1,6 @@
 """Application submit/list/review/decide endpoints."""
 from __future__ import annotations
 
-import cv2
-import numpy as np
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import Response
 from pydantic import BaseModel
@@ -16,10 +14,6 @@ from app.store import Application, store
 router = APIRouter(prefix="/api/applications", tags=["applications"])
 
 _DECISIONS = {"approved", "rejected", "needs_correction"}
-
-# Re-export for backward compatibility (existing tests import these names from here).
-_MAX_UPLOAD_BYTES = MAX_UPLOAD_BYTES
-_MAX_PIXELS = MAX_PIXELS
 
 
 def _summary(a: Application) -> dict:
@@ -63,12 +57,9 @@ async def preview(
         raise HTTPException(400, f"unsupported commodity '{commodity_type}'")
     raw = await image.read()
     try:
-        validate_image(raw)
+        img = validate_image(raw)
     except ImageError as e:
         raise HTTPException(413 if "limit" in str(e) else 400, str(e)) from e
-    img = cv2.imdecode(np.frombuffer(raw, np.uint8), cv2.IMREAD_COLOR)
-    if img is None:
-        raise HTTPException(400, "image is not a readable JPEG/PNG")
     application = {"brand_name": brand_name, "class_type": class_type,
                    "alcohol_content": alcohol_content, "net_contents": net_contents,
                    "source": source, "country_of_origin": country_of_origin,
@@ -113,8 +104,9 @@ def get_application(app_id: str) -> dict:
     a = store.get(app_id)
     if a is None:
         raise HTTPException(404, "application not found")
-    # Fallback: if the worker hasn't verified it yet (or is dormant, as in tests), verify now.
-    if a.verification is None and a.verify_status != "verifying":
+    # Synchronous fallback for the worker-dormant case (e.g. tests): verify items the
+    # worker hasn't taken yet. Errored items are NOT retried here — use /reverify for that.
+    if a.verify_status == "pending":
         verify_application(a)
     return _detail(a)
 

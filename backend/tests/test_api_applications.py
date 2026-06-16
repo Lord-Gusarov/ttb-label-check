@@ -151,8 +151,8 @@ def _fields():
 
 def test_oversized_upload_rejected():
     # Memory-exhaustion guard: a body over the byte cap is refused before any decode.
-    from app.api.applications import _MAX_UPLOAD_BYTES
-    blob = b"\x00" * (_MAX_UPLOAD_BYTES + 1)
+    from app.service import MAX_UPLOAD_BYTES
+    blob = b"\x00" * (MAX_UPLOAD_BYTES + 1)
     r = client.post("/api/applications", data=_fields(),
                     files={"image": ("big.png", blob, "image/png")})
     assert r.status_code == 413, r.text
@@ -166,11 +166,11 @@ def test_pixel_bomb_rejected():
     # Decompression guard: a small file that decodes to a huge raster is refused.
     import cv2
     import numpy as np
-    from app.api.applications import _MAX_PIXELS, _MAX_UPLOAD_BYTES
-    side = int(_MAX_PIXELS**0.5) + 50  # area comfortably over the cap
+    from app.service import MAX_PIXELS, MAX_UPLOAD_BYTES
+    side = int(MAX_PIXELS**0.5) + 50  # area comfortably over the cap
     huge = np.zeros((side, side, 3), dtype=np.uint8)
     ok, buf = cv2.imencode(".png", huge)  # compresses tiny (all zeros)
-    assert ok and len(buf) < _MAX_UPLOAD_BYTES  # passes the byte cap, fails the pixel cap
+    assert ok and len(buf) < MAX_UPLOAD_BYTES  # passes the byte cap, fails the pixel cap
     r = client.post("/api/applications/preview", data=_fields(),
                     files={"image": ("bomb.png", buf.tobytes(), "image/png")})
     assert r.status_code == 413, r.text
