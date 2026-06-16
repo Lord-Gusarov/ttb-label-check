@@ -45,3 +45,22 @@ def test_sqlite_persists_new_fields(tmp_path):
     s.add(a)
     got = s.get(a.id)
     assert got.verify_status == "error" and got.verify_error == "boom"
+
+
+def test_get_batch_missing_returns_none(tmp_path):
+    assert ApplicationStore().get_batch("nope") is None
+    assert SQLiteApplicationStore(tmp_path / "t.db").get_batch("nope") is None
+
+
+def test_clear_removes_batches(tmp_path):
+    mem = ApplicationStore()
+    b = Batch.new(total=1)
+    mem.add_batch(b)
+    mem.clear()
+    assert mem.get_batch(b.id) is None
+
+    sql = SQLiteApplicationStore(tmp_path / "t.db")
+    b2 = Batch.new(total=1)
+    sql.add_batch(b2)
+    sql.clear()
+    assert sql.get_batch(b2.id) is None

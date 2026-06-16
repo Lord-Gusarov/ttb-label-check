@@ -13,7 +13,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List
 
-
 @dataclass
 class Application:
     id: str
@@ -63,6 +62,7 @@ class ApplicationStore:
 
     def clear(self) -> None:
         self._items.clear()
+        self._batches.clear()
 
     def get(self, app_id: str) -> Application | None:
         return self._items.get(app_id)
@@ -70,12 +70,13 @@ class ApplicationStore:
     def list(self) -> list[Application]:
         return list(self._items.values())
 
-    def add_batch(self, batch: "Batch") -> None:
+    def add_batch(self, batch: Batch) -> None:
         self._batches[batch.id] = batch
 
-    def get_batch(self, batch_id: str) -> "Batch | None":
+    def get_batch(self, batch_id: str) -> Batch | None:
         return self._batches.get(batch_id)
 
+    # List[...] not list[...]: the `list` method shadows the builtin in annotations
     def list_by_batch(self, batch_id: str) -> List[Application]:
         return [a for a in self._items.values() if a.batch_id == batch_id]
 
@@ -170,13 +171,14 @@ class SQLiteApplicationStore:
     def clear(self) -> None:
         with self._conn() as c:
             c.execute("DELETE FROM applications")
+            c.execute("DELETE FROM batches")
 
-    def add_batch(self, batch: "Batch") -> None:
+    def add_batch(self, batch: Batch) -> None:
         with self._conn() as c:
             c.execute("INSERT INTO batches (id, created_at, total) VALUES (?,?,?)",
                       (batch.id, batch.created_at, batch.total))
 
-    def get_batch(self, batch_id: str) -> "Batch | None":
+    def get_batch(self, batch_id: str) -> Batch | None:
         with self._conn() as c:
             row = c.execute("SELECT id, created_at, total FROM batches WHERE id=?",
                             (batch_id,)).fetchone()
