@@ -22,7 +22,7 @@ must:
 3. **Human (always).** Whatever neither tier can confidently clear is `NEEDS REVIEW`. The tool
    **advises; it never auto-rejects.**
 
-Two principles fall out of this and run through the whole codebase:
+Three principles fall out of this and run through the whole codebase:
 
 - **The model reads; the deterministic engine decides.** A model may *transcribe* text, but the
   legal verdict is always rendered by deterministic rules — so compliance is auditable and no
@@ -31,6 +31,12 @@ Two principles fall out of this and run through the whole codebase:
 - **Flag, don't fail.** Uncertainty resolves to `NEEDS REVIEW`, never an automated rejection.
   This is why there is no auto-`FAIL` verdict — false-fails erode the trust the stakeholders
   said is essential ("don't make my life harder").
+- **Shift verification left to the submission moment.** The same checks run at *submit* time as a
+  non-persisting self-check (`/preview`): the applicant sees the full result and chooses "Submit"
+  or "Submit anyway" before anything reaches the queue. This moves routine triage — the bulk of
+  the agents' day ("drowning in routine stuff") — to the cheapest place to fix it (the applicant,
+  pre-submission), so the agent queue carries fewer junk submissions and each one has already
+  been seen by the person who can correct it. The tool advises at *both* ends; the human decides.
 
 This directly serves the stakeholder constraints: **< 5 s** (Tier 1 is the fast path),
 **network constraints** (handled by a decoupled, swappable LLM layer — see below — rather than

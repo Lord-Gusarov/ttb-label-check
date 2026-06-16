@@ -17,8 +17,10 @@ always makes the final call.
 
 A submit → review → decide flow over a verification engine:
 
-1. **Submit** — declared fields (brand, class/type, ABV, net contents, responsible party,
-   country of origin) + one combined label image.
+1. **Submit (with a self-check)** — declared fields (brand, class/type, ABV, net contents,
+   responsible party, country of origin) + one combined label image. Before anything is queued,
+   the applicant clicks **Check label** and sees the *full* verification result — nothing is
+   persisted yet — then chooses **Submit** (clean) or **Submit anyway** (flagged).
 2. **Verify** — read the label and check each mandatory element: the declared fields *match*,
    and the **government health warning** is present, ALL-CAPS, and bold. Each field gets a
    verdict (`PASS` / `NEEDS REVIEW`) with evidence — declared vs. found, and a bounding-box
@@ -27,6 +29,11 @@ A submit → review → decide flow over a verification engine:
 
 **The tool advises; it never auto-rejects.** Anything it can't confidently clear is
 `NEEDS REVIEW` for a human — the design deliberately flags rather than fails.
+
+**Shift-left verification.** Running the same checks at the *submission* moment lets applicants
+catch and fix the obvious mismatches *before* they ever reach an agent — so the queue carries
+fewer junk submissions, and what arrives has already been seen by the person who can fix it. The
+agents are "drowning in routine stuff"; this moves the routine triage to where it's cheapest.
 
 ## How it's built (the one-paragraph version)
 
