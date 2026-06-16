@@ -1,9 +1,13 @@
 # Architecture
 
 Label Check verifies an alcohol-beverage label against an application's declared fields and the
-TTB regulations. The guiding rule is **the model reads, the deterministic engine decides** —
-text extraction is swappable and best-effort; the legal verdict is rendered by deterministic,
-auditable rules.
+TTB regulations. It is **local-first and two-tier**: fast on-box OCR plus a deterministic rules
+engine clear the common case with **no outbound call**, and only labels that don't cleanly pass
+escalate to an optional LLM re-read. So the guiding rule is **whatever reads the label, the
+deterministic engine decides** — text extraction is swappable and best-effort (local OCR first,
+an LLM *only when earned*); the legal verdict is always rendered by deterministic, auditable
+rules. This is **not an LLM classifier**: the model never decides legality, and most labels
+never reach it.
 
 ## High-level shape
 
@@ -100,30 +104,43 @@ The optional Tier-2 vision-LLM (cloud). Two prompts: `_LABEL_PROMPT` (transcribe
 `_BOLD_PROMPT` (bold tiebreak). Declared-blind (the model only sees the image, never the
 declared values, so it can't "helpfully" match). Off unless `WARNING_ESCALATION_MODEL` is set.
 
-### API + store + frontend
+### API + service + store + frontend
 - `app/api/applications.py` — submit (`/preview` non-persisting self-check; `POST` to queue),
   list, get-with-verification, decide, image. Upload size + pixel caps; clean JSON errors.
+- `app/service.py` — the **shared core**: `process_one` (validate image → create → enqueue) and
+  `verify_application` (run the pipeline, fail-safe), used by both single submit and batch.
+- `app/worker.py` — background verification pool (`ThreadPoolExecutor`); dormant in tests,
+  started by the app lifespan; re-enqueues stranded items on startup.
+- `app/batch.py` + `app/api/batches.py` — manifest parsing/validation and the batch endpoints
+  (`POST /api/applications/batch`, `GET /api/batches/{id}`).
 - `app/store.py` — SQLite (with an in-memory test double); nothing sensitive retained.
-- `frontend/` — React SPA: applicant submit, agent queue (triaged by verdict), review view with
-  the label + hover-highlighted regions; WCAG-AA.
+- `frontend/` — React SPA: applicant submit, **batch upload** (manifest + images with a progress
+  view), agent queue (tabbed by status), review view with the label + hover-highlighted regions;
+  WCAG-AA.
 
 ## Request lifecycle (one label)
 
 ```
 POST /api/applications/preview  (declared fields + image)
-  → _decode_or_400 (size/pixel-bomb guards)
+  → validate_image (size/pixel-bomb guards)
   → verify_label → LabelResult + per-field evidence
   → serialize → JSON           (NOT persisted — submit-time self-check)
-POST /api/applications         (applicant confirms) → persisted, status "submitted"
-GET  /api/applications/{id}    → runs + caches verification → review view
+POST /api/applications         (applicant confirms) → persisted "submitted" + enqueued for
+                                 background verification (single submit = a batch of one)
+GET  /api/applications/{id}    → cached verification (synchronous fallback only if the worker
+                                 is dormant, e.g. tests) → review view
 POST /api/applications/{id}/decision  → status approved|rejected|needs_correction (human)
 ```
 
-## Designed for batch (not yet built)
+## Batch upload
 
-The agent side is already a **queue**, each application is an **independent unit**, and the
-engine is **stateless** — so batch is additive (a bulk-create endpoint + a batch summary), not a
-rewrite. See [`docs/specs/2026-06-11-submit-review-decide-flow.md`](docs/specs/2026-06-11-submit-review-decide-flow.md).
+A JSON manifest (array of application objects, each naming its image file) + the images post to
+`POST /api/applications/batch`. Per-row validation skips bad rows (with a reason) without
+aborting the batch; valid rows route through the **same `process_one` core** as single submit
+and are verified by a background `ThreadPoolExecutor` worker (`app/worker.py`) — fail-safe, with
+startup re-enqueue of stranded items. `GET /api/batches/{id}` returns derived progress counts for
+a polling view, and items stream into the tabbed queue. So single submit is just **a batch of
+one**. See [`docs/specs/2026-06-16-batch-upload-design.md`](docs/specs/2026-06-16-batch-upload-design.md).
 
 ## Evaluation harnesses — `eval/`
 Separate from the app: the reader bake-off, a synthetic label generator (exact ground truth),
