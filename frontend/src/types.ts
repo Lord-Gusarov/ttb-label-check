@@ -20,10 +20,22 @@ export interface Verification {
   fields: FieldResult[];
   words: { text: string; bbox: Box }[];
 }
+export type VerifyStatus = "pending" | "verifying" | "verified" | "error";
+
 export interface AppSummary {
   id: string; brand_name: string; commodity_type: string;
   status: string; created_at: number;
   overall?: Verdict | null; // automated recommendation, for queue triage
+  verify_status?: VerifyStatus;
+  verify_error?: string | null;
+}
+
+export interface BatchSkip { index: number; image: string | null; reason: string; }
+export interface BatchUploadResult { batch_id: string; accepted: number; skipped: BatchSkip[]; }
+export interface BatchProgress {
+  id: string; total: number;
+  counts: Record<VerifyStatus, number>;
+  items: AppSummary[];
 }
 export interface AppDetail extends AppSummary {
   class_type: string; alcohol_content: string; net_contents: string;
