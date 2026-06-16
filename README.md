@@ -87,6 +87,37 @@ npm run dev
 Open **http://localhost:5173**, go to **Submit**, fill the fields, drop a label image (samples
 in `backend/tests/fixtures/labels/`), and **Check** → **Submit** → review it in the **Queue**.
 
+### Using batch upload
+
+Go to **Batch upload**, choose a **JSON manifest** plus the label images it references; the page
+reconciles filenames before you submit. Each array entry is one application:
+
+```json
+[
+  {
+    "commodity_type": "distilled_spirits",
+    "brand_name": "OLD TOM DISTILLERY",
+    "class_type": "Kentucky Straight Bourbon Whiskey",
+    "alcohol_content": "45% Alc./Vol. (90 Proof)",
+    "net_contents": "750 mL",
+    "responsible_party": "Bottled by Old Tom Distillery, Bardstown, KY",
+    "image": "old_tom_clean.png"
+  }
+]
+```
+
+- **Required per row:** `commodity_type` (`distilled_spirits` | `wine` | `malt_beverage`),
+  `brand_name`, `class_type`, `alcohol_content`, `net_contents`, and `image` — which must match
+  the filename of one of the images you upload.
+- **Optional:** `responsible_party`; and `source` (`domestic` | `imported`) — when `imported`,
+  add `country_of_origin`.
+- Invalid rows are **skipped with a reason** (never aborting the batch); valid rows verify in the
+  background and stream into the tabbed **Queue**. Up to 500 rows per upload.
+
+A ready-to-run manifest is at [`docs/examples/batch-manifest.example.json`](docs/examples/batch-manifest.example.json):
+select it together with `old_tom_clean.png` and `old_tom_rich_circular.png` from
+`backend/tests/fixtures/labels/` to try the full flow.
+
 ## Run as one container
 
 ```bash
