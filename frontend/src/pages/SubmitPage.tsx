@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { getApplication, previewApplication, submitApplication } from "../api";
 import type { Verification } from "../types";
 import { VerificationView } from "../VerificationView";
-import { Field, PageHeading, VerdictPill, inputCls } from "../ui";
+import { Card, Field, PageHeading, VerdictPill, btnPrimary, inputCls } from "../ui";
 
 const FIELDS = [
   { name: "brand_name", label: "Brand name", placeholder: "OLD TOM DISTILLERY" },
@@ -82,9 +82,9 @@ export function SubmitPage() {
         title="Submit an application"
         subtitle="Drop the label artwork on the left, then enter the declared fields on the right. Combine every panel (front, back, side) into one image."
       />
-      <form key={formKey} ref={formRef} onSubmit={onCheck} onChange={invalidate} className="mt-6 grid items-start gap-6 lg:grid-cols-[3fr_2fr]">
+      <form key={formKey} ref={formRef} onSubmit={onCheck} onChange={invalidate} className="mt-8 grid items-start gap-6 lg:grid-cols-[3fr_2fr]">
         <DropZone />
-        <div className="space-y-5 rounded-xl border border-line bg-surface p-6 shadow-sm">
+        <Card className="space-y-5 p-6">
           <Field label="Product type">
             <select name="commodity_type" defaultValue="distilled_spirits" className={inputCls}>
               <option value="distilled_spirits">Distilled spirits</option>
@@ -115,14 +115,11 @@ export function SubmitPage() {
               className={inputCls}
             />
           </Field>
-          <button
-            disabled={busy}
-            className="w-full rounded-md bg-brand px-5 py-3 text-base font-semibold text-white transition hover:brightness-110 disabled:opacity-50"
-          >
+          <button disabled={busy} className={`${btnPrimary} w-full px-5 py-3 text-base`}>
             {busy && !checked ? "Checking…" : "Check label"}
           </button>
-          {error && <p className="text-sm text-fail">Could not check: {error}</p>}
-        </div>
+          {error && <p role="alert" className="text-sm font-medium text-fail">Could not check: {error}</p>}
+        </Card>
       </form>
 
       {submitted ? (
@@ -173,8 +170,8 @@ function DropZone() {
       onDragOver={(e) => { e.preventDefault(); setOver(true); }}
       onDragLeave={() => setOver(false)}
       onDrop={onDrop}
-      className={`flex min-h-[40rem] cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed p-6 text-center transition ${
-        over ? "border-brand bg-brand-soft" : "border-line bg-surface hover:border-brand/50"
+      className={`flex min-h-[40rem] cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed p-6 text-center shadow-card transition ${
+        over ? "scale-[0.99] border-brand bg-brand-soft" : "border-line-strong bg-surface hover:border-brand/60 hover:bg-brand-soft/40"
       }`}
     >
       <input
@@ -188,20 +185,25 @@ function DropZone() {
       />
       {preview ? (
         <>
-          <img src={preview} alt="label preview" className="max-h-[36rem] w-auto rounded-md border border-line shadow-sm" />
+          <img src={preview} alt="label preview" className="max-h-[36rem] w-auto rounded-xl border border-line shadow-lift" />
           <span className="text-xs text-muted">{fileName} · click or drop to replace</span>
           {multiWarn && (
-            <span className="text-xs font-medium text-flag">
+            <span className="text-xs font-semibold text-flag">
               Only the first image was kept — combine all panels into one image and re-drop.
             </span>
           )}
         </>
       ) : (
         <>
-          <span aria-hidden className="text-4xl text-muted">⤓</span>
-          <span className="font-serif text-lg text-ink">Drop the label artwork here</span>
+          <span aria-hidden className="grid h-14 w-14 place-items-center rounded-2xl bg-brand-soft text-brand">
+            <svg viewBox="0 0 24 24" fill="none" className="h-7 w-7" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 16V4m0 12-4-4m4 4 4-4" />
+              <path d="M4 17v2a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-2" />
+            </svg>
+          </span>
+          <span className="font-serif text-xl text-ink">Drop the label artwork here</span>
           <span className="text-sm text-muted">or click to choose a file — flat label image (PNG or JPEG)</span>
-          <span className="text-xs text-muted">
+          <span className="max-w-sm text-xs leading-relaxed text-faint">
             One image per application. If the label has multiple panels (front, back, side),
             combine them into a single image before uploading.
           </span>
@@ -226,9 +228,9 @@ function CheckFeedback({
 }) {
   const pass = verification.overall === "pass";
   return (
-    <div data-testid="check-feedback" className="rise mt-8 space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="font-serif text-2xl font-semibold text-ink">
+    <div data-testid="check-feedback" className="rise mt-10 space-y-5" aria-live="polite">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-8">
+        <h2 className="font-serif text-2xl font-semibold tracking-tight text-ink">
           {pass ? "Looks good — ready to submit" : "Review these before submitting"}
         </h2>
         <VerdictPill verdict={verification.overall} />
@@ -241,7 +243,7 @@ function CheckFeedback({
           type="button"
           disabled={busy}
           onClick={onConfirm}
-          className="rounded-md bg-brand px-5 py-2.5 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-50"
+          className={`${btnPrimary} px-5 py-2.5 text-sm`}
         >
           {busy ? "Submitting…" : pass ? "Submit" : "Submit anyway"}
         </button>
@@ -258,16 +260,19 @@ function CheckFeedback({
 /** Shown after the submitter confirms: the application is now in the agent queue. */
 function SubmittedBanner({ onAgain }: { onAgain: () => void }) {
   return (
-    <div className="rise mt-8 space-y-4 rounded-xl border border-line bg-surface p-6 shadow-sm">
-      <h2 className="font-serif text-2xl font-semibold text-ink">Submitted — now in the review queue</h2>
+    <Card className="rise mt-10 space-y-4 p-8" >
+      <div className="flex items-center gap-3">
+        <span aria-hidden className="grid h-10 w-10 place-items-center rounded-full bg-pass-soft text-pass">
+          <svg viewBox="0 0 24 24" fill="none" className="h-6 w-6" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+            <path d="m5 12.5 4 4 10-10" />
+          </svg>
+        </span>
+        <h2 className="font-serif text-2xl font-semibold tracking-tight text-ink">Submitted — now in the review queue</h2>
+      </div>
       <p className="text-muted">A TTB reviewer will make the final decision. You can submit another application.</p>
-      <button
-        type="button"
-        onClick={onAgain}
-        className="rounded-md bg-brand px-5 py-2.5 text-sm font-semibold text-white transition hover:brightness-110"
-      >
+      <button type="button" onClick={onAgain} className={`${btnPrimary} px-5 py-2.5 text-sm`}>
         Submit another application
       </button>
-    </div>
+    </Card>
   );
 }

@@ -1,8 +1,19 @@
 # ADR 0001 — Local-first pluggable reading layer (RapidOCR hot-path, VLM fallback)
 
-- **Status:** Accepted (2026-06-11)
+- **Status:** Accepted (2026-06-11) · **Superseded in part (2026-06-15)** — see Update below.
 - **Deciders:** engineering
 - **Related:** `docs/evaluation.md` (the living bench data), `app/readers/`, `app/config.py`
+
+> **Update (2026-06-15): the Florence-2 VLM adapter and the `FallbackReader` were removed
+> from the codebase.** The benchmark below is retained for the record. Rationale: the local
+> VLM was the accuracy ceiling (96%) but ~5.7 s p50 on CPU — over the 5 s budget — so it was
+> never promoted to the hot path, and it never actually activated as the fallback (it required
+> an unset `LABELCHECK_VLM_MODEL`, and its `torch`/`transformers` deps weren't in the build).
+> With no accurate-but-slow *local* engine worth falling back to, the confidence-gated
+> `FallbackReader` had no purpose, so `build_reader()` now simply returns the configured hot-path
+> reader (RapidOCR). The optional cloud Tier-2 escalation (`app/escalation.py`) is unaffected —
+> it was always a separate mechanism. If a GPU deployment ever revisits a local VLM, this ADR's
+> data is the starting point.
 
 ## Context
 

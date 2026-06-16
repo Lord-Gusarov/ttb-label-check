@@ -72,6 +72,38 @@ and evidence (bbox) for the overlay.
 
 The agent always makes the final call.
 
+## Net contents & multi-size containers — keg collars (decision, 2026-06-15)
+
+**Container size is packaging, not a commodity.** TTB's three COLA commodities (malt beverage,
+wine, distilled spirits) are defined by the *product*, not the container. A keg of stout is a
+**malt beverage** — there is no separate "keg" category and none should be added.
+
+**Multi-size keg collars are a legitimate, approved format.** A single collar (one COLA) commonly
+pre-prints several keg sizes with check boxes — e.g. `☐ 5.16  ☐ 7.75  ☐ 15.5 U.S. Gallons` — and
+the applicable box is marked **at fill time**, outside the COLA artwork. Precedent: approved COLA
+`23046001000375` (Hood River Brew Co. Stout) is exactly this, as a *single* certificate. (TTB does
+not approve generic *handwritten* fill-ins for net contents; pre-printed check boxes are different
+and allowed. This is supported by approved-COLA precedent; we could not load TTB's net-contents
+guidance page directly to quote the rule.)
+
+**Decision — how the net-contents check treats these:**
+- **Any size printed on the label is legit → `PASS`.** The applicant declares the size they are
+  filing; because the label genuinely bears that net-contents statement, `match_net_contents`
+  finds it and passes. The tool does **not** attempt to read which box is physically checked — OCR
+  can't see checkbox state, and at COLA stage it doesn't need to (the commit happens at fill).
+- **A declared size *not* printed on the label → `NEEDS_REVIEW`** (a soft flag for a human),
+  never a block.
+
+**No special-case code.** `match_net_contents` stays a simple presence check; we deliberately do
+**not** add multi-option / checkbox-detection heuristics. OCR handles the straightforward case,
+and any genuinely unreadable field returns `NEEDS_REVIEW` — which is the existing, non-hack trigger
+that escalates the read to the optional LLM tier (any non-`PASS` field escalates).
+
+**Never a blocker.** Engine verdicts are `PASS / WARN / NEEDS_REVIEW` (the unused `FAIL` tier was
+removed, 2026-06-15). `NEEDS_REVIEW` only routes an application to a human; the submitter can
+always "Submit anyway", and only the agent's decision is binding. A multi-size keg therefore never
+stops a submission.
+
 ## Architecture
 
 Applicant form → `Application` store → on agent open,

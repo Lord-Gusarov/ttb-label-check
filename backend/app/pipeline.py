@@ -9,7 +9,7 @@ Reading escalates through two tiers; the second only runs when the first left a 
 
     Tier 1  LOCAL reading — RapidOCR two-pass with scale search, plus measured geometry
             rescues (ink-profile deskew; 90° re-read for sidebar/keg-collar warnings).
-            ~1.4s typical. No egress: this tier alone is the air-gapped configuration.
+            ~1.4s typical. Runs entirely on-box (no outbound call).
     Tier 2  MODEL reader (cloud or local enclave), env-gated, ~3s — blur / hostile type.
 
 The model runs before the local geometry rescues on the hot path (it fixes recognition
@@ -38,7 +38,7 @@ from app.escalation import escalate_label_read
 from app.readers import ReadResult, build_reader
 from app.rules import LabelResult, evaluate
 from app.rules.result import FieldResult, Verdict, severity
-from app.rules.warning import evaluate_warning
+from app.rules.warning import apply_model_bold, evaluate_warning
 from app.rules.warning_region import deskew_reread, reread_warning, vertical_reread
 
 logger = logging.getLogger(__name__)
@@ -119,6 +119,8 @@ def _model_field_results(
     )
     field_results = list(evaluate(commodity, application, text).fields)
     warning_results = list(evaluate_warning(image, model.get("government_warning", ""), warning_words or [], None))
+    # The same model read also judged bold — fold it in (no separate bold call).
+    warning_results = apply_model_bold(warning_results, model.get("government_warning_bold", ""))
     return field_results + warning_results
 
 
@@ -148,17 +150,22 @@ def verify_label(
     read = _timed("ocr", lambda: reader.extract(image))
     field_result = evaluate(commodity, application, read.text)
 
-    # Tier 1 — anchored re-read with scale search (cheap; clears clean + most labels).
-    region = _timed(
-        "tier1_reread",
-        lambda: _safe(lambda: reread_warning(image, read.words, reader), "tier-1 re-read"),
-    )
-    warning_fields = evaluate_warning(image, read.text, read.words, region)
+    # Government-warning checks on the base read first. The anchored re-read (extra OCR passes
+    # at several scales) is the expensive Tier-1 step, so we only pay it when the base read did
+    # NOT already clear the warning — which is the common case for clean labels.
+    warning_fields = evaluate_warning(image, read.text, read.words, None)
     tier = 1
+    if not all(f.verdict is Verdict.PASS for f in warning_fields):
+        region = _timed(
+            "tier1_reread",
+            lambda: _safe(lambda: reread_warning(image, read.words, reader), "tier-1 re-read"),
+        )
+        if region is not None:
+            warning_fields = evaluate_warning(image, read.text, read.words, region)
 
     fields = list(field_result.fields) + warning_fields
 
-    # LOCAL geometry rescues (deskew / 90° re-read) — the AIR-GAPPED fallback ONLY. A VLM reads
+    # LOCAL geometry rescues (deskew / 90° re-read) — the LOCAL-ONLY fallback. A VLM reads
     # rotated/curved warnings natively, so when the model is available it supersedes these: we never
     # run both (that was the double-grind). Each is one measured correction + one re-read, adopted
     # only if it improves the warning verdict:
@@ -185,7 +192,7 @@ def verify_label(
     # runs after it (unresolved → NEEDS_REVIEW for a human). The image is DOWNSCALED for the upload
     # (the model reads text, not exact pixels), capping latency on large scans. Declared-blind
     # whole-label read; the engine adopts only per-field improvements. Fail-safe: returns None when
-    # the model is off/unavailable — and ONLY then do the local geometry rescues run (air-gapped path).
+    # the model is off/unavailable — and ONLY then do the local geometry rescues run (local-only path).
     if any(f.verdict is not Verdict.PASS for f in fields):
         model = _timed(
             "tier2_model",

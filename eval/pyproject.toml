@@ -4,4 +4,7 @@
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
-markers = ["vlm: live VLM eval tests; opt-in via RUN_VLM_EVAL=1 (skipped by default)"]
+markers = [
+    "vlm: live VLM eval tests; opt-in via RUN_VLM_EVAL=1 (skipped by default)",
+    "llm: live model-prompt eval tests (real OpenAI calls); opt-in via RUN_LLM_EVAL=1 (skipped by default)",
+]

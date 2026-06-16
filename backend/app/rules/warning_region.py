@@ -24,13 +24,12 @@ from app.readers.types import WordBox
 from app.rules.normalize import despace
 from app.rules.spec.government_warning import missing_canonical_tokens
 
-# Re-OCR the warning band at several upscales and keep the best read. No single scale
-# wins: PP-OCR's detector resizes internally, so a given layout has an unpredictable
-# "good" scale and a bad one nearby (e.g. 1.5x recovers a warning that 2.0x drops, and
-# vice-versa for another label). Trying a few and scoring by canonical-token recovery is
-# the robust fix. Readable labels recover on the first scale and short-circuit, so the
-# extra passes only cost time on the genuinely hard labels.
-_SCALES = (1.5, 2.0, 3.0)
+# Re-OCR the warning band at a SINGLE moderate upscale. The warning is small fine-print the
+# full-image pass often misses; one upscale recovers the large majority. We deliberately do
+# NOT scale-search (the old 1.5/2.0/3.0 sweep cost up to 3 OCR passes per label): with the
+# model tier on by default, a warning this single pass can't recover escalates to the LLM —
+# cheaper and faster than grinding extra local OCR passes. (Restore the tuple to re-enable.)
+_SCALES = (2.0,)
 _PAD_PX = 14  # a little headroom above the anchor so the prefix isn't clipped
 
 #: Scales for the Tier-1 deskewed re-read — fewer than Tier 0's, to bound latency: Tier 0

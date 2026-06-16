@@ -1,8 +1,8 @@
 """Reader interface + registry.
 
 A `Reader` turns a label image into a normalized `ReadResult`. The whole point of
-the interface is swappability: RapidOCR, EasyOCR, PaddleOCR, and a local
-VLM all implement the same `extract()`, and the bake-off picks the hot-path engine by
+the interface is swappability: RapidOCR, EasyOCR, and PaddleOCR all implement the
+same `extract()`, and the bake-off picks the hot-path engine by
 measured latency + accuracy. Engines whose dependencies aren't installed simply report
 `available() == False` and are skipped.
 """

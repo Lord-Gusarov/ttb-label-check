@@ -1,6 +1,6 @@
 """Smoke tests for the pluggable reader engines.
 
-These are tolerant by design: heavy engines (easyocr / paddleocr / vlm) are optional,
+These are tolerant by design: heavy engines (easyocr / paddleocr) are optional,
 so each test skips when the engine isn't ``available()`` on this host. What we DO assert
 is the contract every adapter must honor — when an engine is installed it must read the
 canonical clean label and recover the brand + warning as real ``WordBox`` objects with
@@ -21,7 +21,7 @@ CLEAN = Path(__file__).resolve().parent / "fixtures" / "labels" / "old_tom_clean
 # Engines that are always expected to be present (declared in the `readers` extra).
 CORE_ENGINES = {"rapidocr"}
 # Engines that are optional — tested only when installed.
-OPTIONAL_ENGINES = {"easyocr", "paddleocr", "vlm"}
+OPTIONAL_ENGINES = {"easyocr", "paddleocr"}
 
 
 def _despaced(text: str) -> str:

@@ -5,6 +5,7 @@ Adapters whose dependencies are missing still import — they just report
 `available() == False` and are skipped by the bench and the runtime.
 """
 
+from app.config import settings
 from app.readers.base import (
     Reader,
     available_readers,
@@ -18,15 +19,18 @@ from app.readers import (  # noqa: E402,F401
     easyocr_reader,
     paddle_reader,
     rapidocr_reader,
-    vlm_reader,
 )
-from app.readers.composite import FallbackReader, build_reader  # noqa: E402
+
+
+def build_reader() -> Reader:
+    """Construct the configured runtime reader (hot path; swap via `LABELCHECK_READER`)."""
+    return get_reader(settings.default_reader)
+
 
 __all__ = [
     "Reader",
     "ReadResult",
     "WordBox",
-    "FallbackReader",
     "build_reader",
     "get_reader",
     "registered_names",

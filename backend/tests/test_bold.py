@@ -5,11 +5,10 @@ from __future__ import annotations
 import cv2
 import numpy as np
 
-from app import escalation
 from app.bold.detector import detect_warning_bold
 from app.readers.types import WordBox
-from app.rules import warning as warning_rules
-from app.rules.result import Verdict
+from app.rules.result import FieldResult, Verdict
+from app.rules.warning import apply_model_bold
 
 
 def _canvas(h=200, w=600):
@@ -62,7 +61,7 @@ def test_no_prefix_box_returns_none():
 
 
 def test_tiny_glyphs_are_measured_via_upscale():
-    # Glyphs well below _MIN_GLYPH_H must still be measurable (the _prep upscale path),
+    # Tiny glyphs must still be measurable (the uniform upscale + CLAHE path),
     # not crash on the CLAHE step and not silently return None for "could not measure".
     img = _canvas(h=80, w=400)
     _draw(img, "GOVERNMENT WARNING", (5, 18), 0.3, 2)            # tiny bold prefix
@@ -76,40 +75,25 @@ def test_tiny_glyphs_are_measured_via_upscale():
     assert finding.ratio is not None  # a measurement was produced, no crash
 
 
-def test_judge_warning_bold_parses_yes(monkeypatch):
-    monkeypatch.setattr(escalation, "_chat_json", lambda *a, **k: {"bold": "yes"})
-    monkeypatch.setenv("WARNING_ESCALATION_MODEL", "openai:gpt-5.4-mini")
-    assert escalation.judge_warning_bold(np.zeros((40, 120, 3), dtype="uint8")) == "yes"
+# The unclear-bold case is now adjudicated by the model's vote on the SAME label read
+# (apply_model_bold), not a separate bold call.
+def _warning_fields(bold_verdict: Verdict) -> list[FieldResult]:
+    return [
+        FieldResult("warning_text", "", Verdict.PASS, None, None, "ok"),
+        FieldResult("warning_bold", "Warning prefix bold", bold_verdict, "bold", "1.10x body", "unclear"),
+    ]
 
 
-def test_judge_warning_bold_disabled_returns_none(monkeypatch):
-    monkeypatch.setenv("WARNING_ESCALATION_MODEL", "off")
-    assert escalation.judge_warning_bold(np.zeros((40, 120, 3), dtype="uint8")) is None
+def test_apply_model_bold_yes_promotes_to_pass():
+    out = apply_model_bold(_warning_fields(Verdict.NEEDS_REVIEW), "yes")
+    assert next(f.verdict for f in out if f.field == "warning_bold") is Verdict.PASS
 
 
-def test_judge_warning_bold_rejects_invalid_value(monkeypatch):
-    monkeypatch.setattr(escalation, "_chat_json", lambda *a, **k: {"bold": "maybe"})
-    monkeypatch.setenv("WARNING_ESCALATION_MODEL", "openai:gpt-5.4-mini")
-    assert escalation.judge_warning_bold(np.zeros((40, 120, 3), dtype="uint8")) is None
+def test_apply_model_bold_no_keeps_needs_review():
+    out = apply_model_bold(_warning_fields(Verdict.NEEDS_REVIEW), "no")
+    assert next(f.verdict for f in out if f.field == "warning_bold") is Verdict.NEEDS_REVIEW
 
 
-def test_tiebreak_promotes_unclear_to_pass(monkeypatch):
-    # Local detector unclear -> VLM says yes -> PASS.
-    from app.bold.detector import BoldFinding
-    monkeypatch.setattr(warning_rules, "detect_warning_bold",
-                        lambda img, words: BoldFinding(None, 1.1, "unclear"))
-    monkeypatch.setattr(warning_rules, "judge_warning_bold", lambda crop: "yes")
-    fr = warning_rules.check_warning_bold(np.zeros((40, 120, 3), dtype="uint8"), [])
-    assert fr.verdict is Verdict.PASS
-
-
-def test_tiebreak_not_called_when_local_confident(monkeypatch):
-    from app.bold.detector import BoldFinding
-    monkeypatch.setattr(warning_rules, "detect_warning_bold", lambda img, words: BoldFinding(True, 1.5, "bold"))
-    called = {"n": 0}
-    def _spy(crop):
-        called["n"] += 1
-        return "no"
-    monkeypatch.setattr(warning_rules, "judge_warning_bold", _spy)
-    fr = warning_rules.check_warning_bold(np.zeros((40, 120, 3), dtype="uint8"), [])
-    assert fr.verdict is Verdict.PASS and called["n"] == 0
+def test_apply_model_bold_blank_or_invalid_is_noop():
+    wf = _warning_fields(Verdict.NEEDS_REVIEW)
+    assert apply_model_bold(wf, "") == wf and apply_model_bold(wf, "maybe") == wf
