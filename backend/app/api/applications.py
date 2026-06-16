@@ -10,32 +10,16 @@ from pydantic import BaseModel
 from app.pipeline import verify_label
 from app.rules import RULESETS
 from app.serialize import serialize_verification
+from app.service import ImageError, MAX_PIXELS, MAX_UPLOAD_BYTES, process_one, validate_image, verify_application
 from app.store import Application, store
 
 router = APIRouter(prefix="/api/applications", tags=["applications"])
 
 _DECISIONS = {"approved", "rejected", "needs_correction"}
 
-#: Reject uploads larger than this before decoding — a memory-exhaustion guard on an otherwise
-#: unauthenticated endpoint. A real label image (even a high-res phone photo or a COLA scan) is
-#: comfortably under this, so legitimate uploads are never affected.
-_MAX_UPLOAD_BYTES = 25 * 1024 * 1024  # 25 MB
-#: Reject images whose decoded raster exceeds this many pixels — a decompression/pixel-bomb
-#: guard. A tiny compressed file can declare huge dimensions, and every pipeline tier (scale
-#: search, rescues) then runs over the full raster. ~50 MP is far above any genuine label.
-_MAX_PIXELS = 50_000_000  # 50 megapixels
-
-
-async def _read_capped(image: UploadFile) -> bytes:
-    raw = await image.read()
-    if len(raw) > _MAX_UPLOAD_BYTES:
-        raise HTTPException(413, f"image exceeds the {_MAX_UPLOAD_BYTES // (1024 * 1024)}MB limit")
-    return raw
-
-
-class Decision(BaseModel):
-    decision: str
-    note: str | None = None
+# Re-export for backward compatibility (existing tests import these names from here).
+_MAX_UPLOAD_BYTES = MAX_UPLOAD_BYTES
+_MAX_PIXELS = MAX_PIXELS
 
 
 def _summary(a: Application) -> dict:
@@ -43,7 +27,8 @@ def _summary(a: Application) -> dict:
     # It's whatever the cached verification found (None until the app has been verified).
     overall = a.verification.get("overall") if a.verification else None
     return {"id": a.id, "brand_name": a.brand_name, "commodity_type": a.commodity_type,
-            "status": a.status, "created_at": a.created_at, "overall": overall}
+            "status": a.status, "created_at": a.created_at, "overall": overall,
+            "verify_status": a.verify_status, "verify_error": a.verify_error}
 
 
 def _detail(a: Application) -> dict:
@@ -52,14 +37,9 @@ def _detail(a: Application) -> dict:
             "decision_note": a.decision_note, "verification": a.verification}
 
 
-def _decode_or_400(raw: bytes) -> np.ndarray:
-    img = cv2.imdecode(np.frombuffer(raw, np.uint8), cv2.IMREAD_COLOR)
-    if img is None:
-        raise HTTPException(400, "image is not a readable JPEG/PNG")
-    h, w = img.shape[:2]
-    if h * w > _MAX_PIXELS:
-        raise HTTPException(413, f"image resolution exceeds the {_MAX_PIXELS // 1_000_000}MP limit")
-    return img
+class Decision(BaseModel):
+    decision: str
+    note: str | None = None
 
 
 @router.post("/preview")
@@ -81,7 +61,14 @@ async def preview(
     """
     if commodity_type not in RULESETS:
         raise HTTPException(400, f"unsupported commodity '{commodity_type}'")
-    img = _decode_or_400(await _read_capped(image))
+    raw = await image.read()
+    try:
+        validate_image(raw)
+    except ImageError as e:
+        raise HTTPException(413 if "limit" in str(e) else 400, str(e)) from e
+    img = cv2.imdecode(np.frombuffer(raw, np.uint8), cv2.IMREAD_COLOR)
+    if img is None:
+        raise HTTPException(400, "image is not a readable JPEG/PNG")
     application = {"brand_name": brand_name, "class_type": class_type,
                    "alcohol_content": alcohol_content, "net_contents": net_contents,
                    "source": source, "country_of_origin": country_of_origin,
@@ -103,14 +90,16 @@ async def create(
 ) -> dict:
     if commodity_type not in RULESETS:
         raise HTTPException(400, f"unsupported commodity '{commodity_type}'")
-    raw = await _read_capped(image)
-    _decode_or_400(raw)
-    a = Application.new(commodity_type=commodity_type, brand_name=brand_name,
-                        class_type=class_type, alcohol_content=alcohol_content,
-                        net_contents=net_contents, source=source,
-                        country_of_origin=country_of_origin,
-                        responsible_party=responsible_party, image=raw)
-    store.add(a)
+    raw = await image.read()
+    try:
+        validate_image(raw)
+    except ImageError as e:
+        raise HTTPException(413 if "limit" in str(e) else 400, str(e)) from e
+    payload = {"commodity_type": commodity_type, "brand_name": brand_name,
+               "class_type": class_type, "alcohol_content": alcohol_content,
+               "net_contents": net_contents, "source": source,
+               "country_of_origin": country_of_origin, "responsible_party": responsible_party}
+    a = process_one(payload, raw)
     return {"id": a.id, "status": a.status}
 
 
@@ -119,27 +108,14 @@ def list_applications() -> list[dict]:
     return [_summary(a) for a in store.list()]
 
 
-def _ensure_verification(a: Application, *, force: bool = False) -> None:
-    """Run (and cache) verification for an application; `force` re-runs even if cached."""
-    if not a.image or (a.verification is not None and not force):
-        return
-    img = cv2.imdecode(np.frombuffer(a.image, np.uint8), cv2.IMREAD_COLOR)
-    if img is None:
-        raise HTTPException(400, "stored image could not be decoded")
-    application = {"brand_name": a.brand_name, "class_type": a.class_type,
-                   "alcohol_content": a.alcohol_content, "net_contents": a.net_contents,
-                   "source": a.source, "country_of_origin": a.country_of_origin,
-                   "responsible_party": a.responsible_party}
-    a.verification = serialize_verification(verify_label(img, a.commodity_type, application))
-    store.update(a)
-
-
 @router.get("/{app_id}")
 def get_application(app_id: str) -> dict:
     a = store.get(app_id)
     if a is None:
         raise HTTPException(404, "application not found")
-    _ensure_verification(a)
+    # Fallback: if the worker hasn't verified it yet (or is dormant, as in tests), verify now.
+    if a.verification is None and a.verify_status != "verifying":
+        verify_application(a)
     return _detail(a)
 
 
@@ -149,7 +125,7 @@ def reverify(app_id: str) -> dict:
     a = store.get(app_id)
     if a is None:
         raise HTTPException(404, "application not found")
-    _ensure_verification(a, force=True)
+    verify_application(a)
     return _detail(a)
 
 

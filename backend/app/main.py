@@ -19,6 +19,7 @@ from starlette.responses import JSONResponse
 
 from app import __version__
 from app.api.applications import router as applications_router
+from app.api.batches import router as batches_router
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s | %(message)s"
@@ -47,6 +48,7 @@ def health() -> dict[str, str]:
 
 
 app.include_router(applications_router)
+app.include_router(batches_router)
 
 
 @app.exception_handler(Exception)
