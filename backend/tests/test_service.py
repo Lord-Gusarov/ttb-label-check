@@ -22,8 +22,9 @@ def _no_enqueue(monkeypatch):
 
 
 def _payload(**kw):
+    # process_one takes image_bytes separately — the payload carries declared fields only.
     base = dict(commodity_type="distilled_spirits", brand_name="B", class_type="C",
-                alcohol_content="40%", net_contents="750 mL", image="a.png")
+                alcohol_content="40%", net_contents="750 mL")
     base.update(kw)
     return base
 

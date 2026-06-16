@@ -62,6 +62,7 @@ def process_one(payload: dict, image_bytes: bytes, *, batch_id: str | None = Non
 
 
 def _application_dict(a: Application) -> dict:
+    """Build the pipeline's declared-fields dict from a stored Application."""
     return {"brand_name": a.brand_name, "class_type": a.class_type,
             "alcohol_content": a.alcohol_content, "net_contents": a.net_contents,
             "source": a.source, "country_of_origin": a.country_of_origin,
