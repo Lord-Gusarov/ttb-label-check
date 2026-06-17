@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getApplication, previewApplication, submitApplication } from "../api";
 import type { Verification } from "../types";
 import { VerificationView } from "../VerificationView";
@@ -20,6 +20,15 @@ export function SubmitPage() {
   const [submitted, setSubmitted] = useState(false);
   const [formKey, setFormKey] = useState(0); // bump to remount the form subtree (full reset)
   const [source, setSource] = useState("domestic"); // gates the country-of-origin field
+  const resultRef = useRef<HTMLDivElement>(null);
+
+  // The result lands below a tall drop zone, so it can open below the fold. Pull it into
+  // view once a check or submission renders so the reviewer doesn't miss it.
+  useEffect(() => {
+    if (checked || submitted) {
+      resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [checked, submitted]);
 
   // Any edit after a check invalidates it — you can never submit data that wasn't checked.
   function invalidate() {
@@ -122,11 +131,13 @@ export function SubmitPage() {
         </Card>
       </form>
 
-      {submitted ? (
-        <SubmittedBanner onAgain={onAgain} />
-      ) : (
-        checked && <CheckFeedback verification={checked} imageUrl={imageUrl} busy={busy} onConfirm={onConfirm} />
-      )}
+      <div ref={resultRef} className="scroll-mt-24">
+        {submitted ? (
+          <SubmittedBanner onAgain={onAgain} />
+        ) : (
+          checked && <CheckFeedback verification={checked} imageUrl={imageUrl} busy={busy} onConfirm={onConfirm} />
+        )}
+      </div>
     </div>
   );
 }
